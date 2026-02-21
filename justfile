@@ -28,7 +28,7 @@ dev-shell *args:
     fi
     # Conditional host config mounts
     [[ -f "$HOME/.gitconfig" ]] && run_args+=(-v "$HOME/.gitconfig:/tmp/home/.gitconfig:ro")
-    [[ -d "$HOME/.config/glab-cli" ]] && run_args+=(-v "$HOME/.config/glab-cli:/tmp/glab-config:ro")
+    [[ -d "$HOME/.config/glab-cli" ]] && run_args+=(-v "$HOME/.config/glab-cli:/tmp/glab-config")
     [[ -d "$HOME/.claude" ]] && run_args+=(
         -v "$HOME/.claude:/tmp/home/.claude"
         -v "$HOME/.claude:$HOME/.claude"
