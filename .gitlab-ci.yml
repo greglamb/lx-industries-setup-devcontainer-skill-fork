@@ -1,5 +1,15 @@
+.docker:
+  image: docker:latest@sha256:8bcbad4b45f0bff9d3e809d85a7ac589390f0be8acbc526850c998c35c1243fd
+  services:
+    - docker:dind
+  tags:
+    - docker-in-docker
+  rules:
+    - changes:
+        - .devcontainer/*
+        - .gitlab-ci.yml
+
 devcontainer:validate:
-  # renovate: datasource=docker depName=ghcr.io/astral-sh/uv
   image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim@sha256:531f855bda2c73cd6ef67d56b733b357cea384185b3022bd09f05e002cd144ca
   script:
     - uvx check-jsonschema
@@ -11,12 +21,23 @@ devcontainer:validate:
         - .gitlab-ci.yml
 
 devcontainer:build:
-  image: docker:latest
-  services:
-    - docker:dind
+  extends: .docker
   script:
     - docker build .devcontainer/
-  rules:
-    - changes:
-        - .devcontainer/*
-        - .gitlab-ci.yml
+
+devcontainer:smoke-test:
+  extends: .docker
+  script:
+    - docker build -t devcontainer-test .devcontainer/
+    - |
+      docker run --rm devcontainer-test bash -c '
+        set -e
+        for cmd in \
+          curl git ssh jq less fzf ps unzip gpg python3 delta \
+          glab claude gosu \
+          iptables ipset ip dig \
+        ; do
+          command -v "$cmd" >/dev/null || { echo "MISSING: $cmd"; exit 1; }
+        done
+        echo "All utilities present"
+      '

@@ -15,9 +15,24 @@ ENV GLAB_CONFIG_DIR=/tmp/glab-config
 
 # -- System packages -----------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        # core system
         ca-certificates curl git openssh-client \
+        # firewall (optional, for firewalled mode)
         iptables ipset iproute2 dnsutils \
+        # CLI utilities used by Claude Code (via Bash tool)
+        jq less fzf procps unzip gnupg2 \
+        # general-purpose (not project-stack specific)
+        python3 \
     && rm -rf /var/lib/apt/lists/*
+
+# -- git-delta (CLI utility used by Claude Code for enhanced diffs) ------------
+# renovate: datasource=github-releases depName=dandavison/delta
+ARG GIT_DELTA_VERSION="0.18.2"
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://github.com/dandavison/delta/releases/download/${GIT_DELTA_VERSION}/git-delta_${GIT_DELTA_VERSION}_${arch}.deb" -o /tmp/git-delta.deb \
+    && dpkg -i /tmp/git-delta.deb \
+    && rm /tmp/git-delta.deb \
+    && delta --version
 
 # -- gosu (privilege dropping for firewalled mode) -----------------------------
 # renovate: datasource=github-releases depName=tianon/gosu
