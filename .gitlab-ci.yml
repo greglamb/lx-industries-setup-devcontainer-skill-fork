@@ -1,0 +1,22 @@
+devcontainer:validate:
+  # renovate: datasource=docker depName=ghcr.io/astral-sh/uv
+  image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim@sha256:531f855bda2c73cd6ef67d56b733b357cea384185b3022bd09f05e002cd144ca
+  script:
+    - uvx check-jsonschema
+        --schemafile "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
+        .devcontainer/devcontainer.json
+  rules:
+    - changes:
+        - .devcontainer/*
+        - .gitlab-ci.yml
+
+devcontainer:build:
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build .devcontainer/
+  rules:
+    - changes:
+        - .devcontainer/*
+        - .gitlab-ci.yml
