@@ -11,6 +11,9 @@ Shares the host's `~/.claude` and `~/.claude.json` with the container. Plugins, 
   "name": "<project-name>",
   "build": { "dockerfile": "Dockerfile" },
   "init": true,
+  "containerUser": "dev",
+  "remoteUser": "dev",
+  "updateRemoteUserUID": true,
   "workspaceFolder": "${localWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "mounts": [
@@ -25,6 +28,9 @@ Shares the host's `~/.claude` and `~/.claude.json` with the container. Plugins, 
     "SSH_AUTH_SOCK": "/tmp/ssh-agent.sock",
     "GIT_SSH_COMMAND": "ssh -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts",
     "COLORTERM": "${localEnv:COLORTERM}"
+  },
+  "containerEnv": {
+    "DEVCONTAINER_WORKSPACE": "${localWorkspaceFolder}"
   }
 }
 ```
@@ -40,6 +46,9 @@ Fresh Claude Code with no host config sharing. Plugins must be installed inside 
   "name": "<project-name>",
   "build": { "dockerfile": "Dockerfile" },
   "init": true,
+  "containerUser": "dev",
+  "remoteUser": "dev",
+  "updateRemoteUserUID": true,
   "workspaceFolder": "${localWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "mounts": [
@@ -52,6 +61,9 @@ Fresh Claude Code with no host config sharing. Plugins must be installed inside 
     "SSH_AUTH_SOCK": "/tmp/ssh-agent.sock",
     "GIT_SSH_COMMAND": "ssh -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts",
     "COLORTERM": "${localEnv:COLORTERM}"
+  },
+  "containerEnv": {
+    "DEVCONTAINER_WORKSPACE": "${localWorkspaceFolder}"
   }
 }
 ```
@@ -66,3 +78,5 @@ No dual mount needed — there are no host paths to resolve. The named volume (`
 - **SSH agent socket**: bind-mount `SSH_AUTH_SOCK` from the host and set it in `remoteEnv` — the agent handles authentication (holds decrypted keys), so mounting `~/.ssh` is not needed. Note: the VS Code Dev Containers extension auto-forwards the host SSH agent without any configuration, but the devcontainer CLI does not — the explicit socket mount ensures SSH works in both VS Code and headless/CLI environments (Claude Code, DevPod, CI).
 - **`COLORTERM` forwarding**: Docker does not forward `COLORTERM` from the host. Without it, CLI tools (including Claude Code) fall back to basic colors. Forward it via `remoteEnv` in devcontainer.json (`"COLORTERM": "${localEnv:COLORTERM}"`) and `-e COLORTERM="${COLORTERM:-}"` in the task runner recipe. VS Code's integrated terminal handles this automatically, but headless/CLI usage requires explicit forwarding.
 - **Forge CLI config**: read-only mount (path varies — `~/.config/glab-cli` for glab, `~/.config/gh` for gh).
+- **`containerUser` / `remoteUser` / `updateRemoteUserUID`**: Creates the `dev` user in the Dockerfile (UID 1000). IDEs that support the devcontainer spec (VS Code, DevPod) remap UID 1000 to match the host UID automatically via `updateRemoteUserUID`. IDEs that don't support `remoteUser` (Zed — see [zed#46252](https://github.com/zed-industries/zed/issues/46252)) start as root; the entrypoint detects this and drops to the workspace owner UID via `gosu`. Both paths converge to the host UID.
+- **`DEVCONTAINER_WORKSPACE`**: Tells the entrypoint which directory to `stat` for workspace owner inference. Falls back to `$(pwd)` if unset. Set explicitly for reliability — some IDEs may change the working directory before running the entrypoint.
