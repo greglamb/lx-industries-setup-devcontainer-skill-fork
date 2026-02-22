@@ -2,6 +2,9 @@
   "name": "setup-devcontainer-skill",
   "build": { "dockerfile": "Dockerfile" },
   "init": true,
+  "containerUser": "dev",
+  "remoteUser": "dev",
+  "updateRemoteUserUID": true,
   "workspaceFolder": "${localWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "mounts": [
@@ -16,5 +19,8 @@
     "SSH_AUTH_SOCK": "/tmp/ssh-agent.sock",
     "GIT_SSH_COMMAND": "ssh -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts",
     "COLORTERM": "${localEnv:COLORTERM}"
+  },
+  "containerEnv": {
+    "DEVCONTAINER_WORKSPACE": "${localWorkspaceFolder}"
   }
 }
