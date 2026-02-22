@@ -178,10 +178,23 @@ Update `.devcontainer/entrypoint.sh` to handle both normal and firewalled modes:
 #!/bin/bash
 
 # -- Resolve target UID/GID ---------------------------------------------------
-# In firewalled mode, the container starts as root and DEVCONTAINER_UID/GID
-# specify the user to drop to. In normal mode, --user already set the UID.
+# Priority:
+#   1. DEVCONTAINER_UID/GID env vars (firewalled mode — explicit)
+#   2. Workspace directory owner (IDE started as root without explicit UID)
+#   3. Current UID (normal mode — --user already set the UID)
+
 target_uid="${DEVCONTAINER_UID:-$(id -u)}"
 target_gid="${DEVCONTAINER_GID:-$(id -g)}"
+
+# If running as root without explicit UID, infer from workspace owner.
+# Handles IDEs like Zed that ignore remoteUser and start as root.
+if [[ "$(id -u)" = "0" ]] && [[ -z "${DEVCONTAINER_UID:-}" ]]; then
+    workspace="${DEVCONTAINER_WORKSPACE:-$(pwd)}"
+    if [[ -d "$workspace" ]]; then
+        target_uid="$(stat -c '%u' "$workspace")"
+        target_gid="$(stat -c '%g' "$workspace")"
+    fi
+fi
 
 # -- Inject passwd entry for the target UID ------------------------------------
 if ! getent passwd "$target_uid" >/dev/null 2>&1; then
@@ -196,8 +209,8 @@ if [[ "${DEVCONTAINER_FIREWALL:-}" = "1" ]] && [[ "$(id -u)" = "0" ]]; then
     ipset list allowed-domains | grep -E '^[0-9]' > /tmp/firewall-allowed-ips.txt 2>/dev/null || true
 fi
 
-# -- Drop privileges if running as root with a target UID ---------------------
-if [[ "$(id -u)" = "0" ]] && [[ -n "${DEVCONTAINER_UID:-}" ]]; then
+# -- Drop privileges if running as root with a non-root target ----------------
+if [[ "$(id -u)" = "0" ]] && [[ "${target_uid}" != "0" ]]; then
     exec gosu "${target_uid}:${target_gid}" "$@"
 fi
 
@@ -205,8 +218,10 @@ exec "$@"
 ```
 
 How it works in each mode:
-- **Normal mode** (`--user $(id -u):$(id -g)`): Entrypoint runs as the host UID. `DEVCONTAINER_FIREWALL` is unset, firewall is skipped. `DEVCONTAINER_UID` is unset, `gosu` is skipped. Falls through to `exec "$@"`.
-- **Firewalled mode** (no `--user`, root): Entrypoint runs as root. Injects passwd entry for the target UID. Runs the firewall script. Then `gosu` drops to the target UID before executing the command.
+- **Normal mode** (`--user $(id -u):$(id -g)`): Runs as host UID. Firewall skipped. Not root, so gosu skipped. Falls through to `exec "$@"`.
+- **IDE without remoteUser** (Zed): Runs as root. `DEVCONTAINER_UID` unset, so infers target from workspace owner via `stat`. Firewall skipped (`DEVCONTAINER_FIREWALL` unset). Drops to workspace owner UID via `gosu`.
+- **Firewalled mode** (root + `DEVCONTAINER_UID`): Runs as root. Uses explicit `DEVCONTAINER_UID`. Runs firewall. Drops to target UID via `gosu`.
+- **IDE with remoteUser** (VS Code): `updateRemoteUserUID` remaps the `dev` user to host UID before container start. Runs as host UID. Entrypoint is a no-op (not root, no firewall).
 
 ## 5.5 devcontainer.json additions (firewalled mode only)
 
