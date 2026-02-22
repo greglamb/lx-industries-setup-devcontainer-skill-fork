@@ -30,6 +30,10 @@
 | Flushing iptables without saving Docker DNS | Preserve `127.0.0.11` rules before flushing — without them, container DNS resolution breaks |
 | Running firewall as non-root | iptables requires root + `NET_ADMIN` capability — in firewalled mode, start as root and drop privileges via `gosu` after firewall setup |
 | Granting `NET_ADMIN` in normal mode | Only add `--cap-add=NET_ADMIN --cap-add=NET_RAW` in firewalled mode — they are security-sensitive capabilities not needed for normal development |
+| No `remoteUser` in devcontainer.json | Add `"containerUser": "dev"`, `"remoteUser": "dev"`, `"updateRemoteUserUID": true` — without these, IDEs run as root and file ownership diverges from CLI usage |
+| Running as root without workspace UID inference | Entrypoint must detect root-without-explicit-UID and `stat` the workspace to infer the target UID — otherwise IDEs like Zed (which ignore `remoteUser`) create files owned by root |
+| gosu condition only checks `DEVCONTAINER_UID` | Check `target_uid != 0` instead — gosu must also trigger when the target was inferred from the workspace owner, not just when explicitly set via env var |
+| No `DEVCONTAINER_WORKSPACE` env var | Pass `DEVCONTAINER_WORKSPACE` in devcontainer.json (`containerEnv`) and task runner (`-e` flag) — the entrypoint falls back to `$(pwd)` but explicit is more reliable |
 
 ## Red Flags
 
@@ -50,3 +54,5 @@
 - Validate devcontainer.json against the spec schema in CI
 - Include `registry.npmjs.org` and `github.com` in the firewall allowlist regardless of project language/forge
 - Self-test the firewall (verify a blocked domain is unreachable, verify an allowed domain is reachable)
+- Set `containerUser`, `remoteUser`, and `updateRemoteUserUID` in devcontainer.json
+- Test the container started as root without `--user` to verify the entrypoint drops to the workspace owner UID
