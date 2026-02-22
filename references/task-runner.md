@@ -40,6 +40,7 @@ dev-shell *args:
         -v "$SSH_AUTH_SOCK:/tmp/ssh-agent.sock"
         -e SSH_AUTH_SOCK=/tmp/ssh-agent.sock
         -e COLORTERM="${COLORTERM:-}"
+        -e DEVCONTAINER_WORKSPACE="$(pwd)"
     )
     # Firewalled mode: iptables egress filter + run as root then drop privileges via gosu
     # Normal mode: run directly as host UID (no firewall, no caps)
@@ -76,3 +77,4 @@ dev-shell *args:
 - **No subcommands or flags for mount selection** — auto-detect what exists on the host
 - **Single entry point** — one recipe, not separate `dev-shell-isolated` / `dev-shell-full` recipes. The conditional mounts handle both cases naturally.
 - **`--firewall` flag** — opt-in firewall mode. Without it, the container runs as the host UID with full internet access (normal development). With it, the container starts as root with `NET_ADMIN`/`NET_RAW`, the entrypoint runs the firewall, then drops to the host UID via `gosu`. Usage: `just dev-shell --firewall claude` for firewalled autonomous mode.
+- **`DEVCONTAINER_WORKSPACE`** — passed to the entrypoint so it knows which directory to `stat` for workspace owner inference. Redundant in normal mode (the entrypoint doesn't need it when not root), but consistent with devcontainer.json's `containerEnv` and useful if the recipe is adapted for root-based modes.
