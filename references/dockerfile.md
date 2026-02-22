@@ -46,6 +46,7 @@ Place these in the environment section alongside `HOME`, `PATH`, etc.
 3. System packages (`apt-get`, `apk`)
 4. Versioned tool installations (CLI tools, etc.)
 5. Runtime configuration (git, SSH)
+6. Non-root user creation (for `remoteUser` + `updateRemoteUserUID`)
 
 ## Claude Code (native binary, auto-updates)
 
@@ -105,6 +106,21 @@ RUN mkdir -p /etc/ssh \
 
 Always include `github.com` alongside the project forge — Claude Code connects to GitHub for distribution and updates.
 
+## Non-root user (remoteUser + updateRemoteUserUID)
+
+Create exactly one non-root user in the image. The devcontainer spec's `updateRemoteUserUID` mechanism requires a non-root user to remap — without one, it has nothing to remap and the container runs as root.
+
+```dockerfile
+# -- Non-root user (for remoteUser + updateRemoteUserUID) --------------------
+# IDEs that support the devcontainer spec remap this UID to match the host.
+# IDEs that don't (Zed) rely on the entrypoint to detect and drop to the
+# workspace owner UID via gosu.
+RUN groupadd --gid 1000 dev \
+ && useradd --uid 1000 --gid 1000 --no-create-home --home-dir /tmp/home --shell /bin/bash dev
+```
+
+Place this **before** the permissions section (`chmod -R 1777 /tmp/home`) — the user needs to exist before permissions are set, and `--no-create-home` avoids conflicting with the already-existing `/tmp/home` directory.
+
 ## Permissions
 
 ```dockerfile
@@ -135,13 +151,40 @@ Create `.devcontainer/entrypoint.sh`:
 
 ```bash
 #!/bin/bash
-# Inject a passwd entry for the current UID if one does not exist.
-# This allows SSH and other tools to resolve the user when running
-# with an arbitrary --user UID:GID.
-if ! getent passwd "$(id -u)" >/dev/null 2>&1; then
-    echo "dev:x:$(id -u):$(id -g):dev:${HOME}:/bin/bash" >> /etc/passwd
+# Resolve target UID — priority: explicit env var > workspace owner > current UID
+target_uid="${DEVCONTAINER_UID:-$(id -u)}"
+target_gid="${DEVCONTAINER_GID:-$(id -g)}"
+
+# If root without explicit UID, infer from workspace owner (handles IDEs like Zed)
+if [[ "$(id -u)" = "0" ]] && [[ -z "${DEVCONTAINER_UID:-}" ]]; then
+    workspace="${DEVCONTAINER_WORKSPACE:-$(pwd)}"
+    if [[ -d "$workspace" ]]; then
+        target_uid="$(stat -c '%u' "$workspace")"
+        target_gid="$(stat -c '%g' "$workspace")"
+    fi
 fi
+
+if ! getent passwd "$target_uid" >/dev/null 2>&1; then
+    echo "dev:x:${target_uid}:${target_gid}:dev:${HOME}:/bin/bash" >> /etc/passwd
+fi
+
+# Drop privileges if running as root with a non-root target
+if [[ "$(id -u)" = "0" ]] && [[ "${target_uid}" != "0" ]]; then
+    exec gosu "${target_uid}:${target_gid}" "$@"
+fi
+
 exec "$@"
+```
+
+The `gosu` command is required for the privilege-drop block. If Phase 5 (firewall) is configured, `gosu` is already installed as part of the firewall packages. If not, install it standalone:
+
+```dockerfile
+# renovate: datasource=github-releases depName=tianon/gosu
+ARG GOSU_VERSION="1.19"
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${arch}" -o /usr/local/bin/gosu \
+    && chmod +x /usr/local/bin/gosu \
+    && gosu --version
 ```
 
 ## Worktree compatibility — do NOT set WORKDIR
