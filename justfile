@@ -12,6 +12,7 @@ dev-shell *args:
         -v "$SSH_AUTH_SOCK:/tmp/ssh-agent.sock"
         -e SSH_AUTH_SOCK=/tmp/ssh-agent.sock
         -e COLORTERM="${COLORTERM:-}"
+        -e DEVCONTAINER_WORKSPACE="$(pwd)"
     )
     # Firewalled mode: iptables egress filter + run as root then drop privileges via gosu
     # Normal mode: run directly as host UID (no firewall, no caps)
