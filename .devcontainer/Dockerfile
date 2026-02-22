@@ -67,6 +67,13 @@ RUN git config --system safe.directory '*'
 RUN mkdir -p /etc/ssh \
     && ssh-keyscan -t ecdsa,rsa,ed25519 gitlab.com github.com >> /etc/ssh/ssh_known_hosts 2>/dev/null
 
+# -- Non-root user (for remoteUser + updateRemoteUserUID) --------------------
+# IDEs that support the devcontainer spec remap this UID to match the host.
+# IDEs that don't (Zed) rely on the entrypoint to detect and drop to the
+# workspace owner UID via gosu.
+RUN groupadd --gid 1000 dev \
+ && useradd --uid 1000 --gid 1000 --no-create-home --home-dir /tmp/home --shell /bin/bash dev
+
 # -- Permissions ---------------------------------------------------------------
 RUN chmod -R 1777 /tmp/home
 
