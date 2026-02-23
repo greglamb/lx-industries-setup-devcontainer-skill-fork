@@ -64,9 +64,9 @@ dev-shell *args:
     )
     [[ -f "$HOME/.claude.json" ]] && run_args+=(-v "$HOME/.claude.json:/tmp/home/.claude.json")
     if [[ $# -eq 0 ]]; then
-        docker run "${run_args[@]}" <project>-devcontainer bash
+        exec docker run "${run_args[@]}" <project>-devcontainer bash
     else
-        docker run "${run_args[@]}" <project>-devcontainer "$@"
+        exec docker run "${run_args[@]}" <project>-devcontainer "$@"
     fi
 ```
 
