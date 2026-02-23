@@ -22,6 +22,7 @@
 | Missing `"init": true` in devcontainer.json | Without tini as PID 1, signals aren't handled properly and zombie processes accumulate |
 | Writable `.gitconfig` mount | Mount `.gitconfig` with `:ro` — prevents container from modifying host git config |
 | No NPM supply-chain hardening | Set `NPM_CONFIG_IGNORE_SCRIPTS=true` and `NPM_CONFIG_MINIMUM_RELEASE_AGE=1440` — Claude Code runs `npm install` for MCP servers |
+| Forge CLI config mounted read-only | Forge CLIs (glab, gh) create temp files in their config directory during normal operations (atomic writes) — mount without `:ro` |
 | Forge CLI config created by build as root | `glab --version` / `gh --version` during build creates config owned by root:0600 — `rm -rf` and `mkdir -m 1777` after the version check |
 | Missing `COLORTERM` in container | Docker doesn't forward `COLORTERM` — add to `remoteEnv` and `-e` flags so CLI tools use truecolor |
 | Hardcoded IPs in firewall allowlist | Use domain names in `firewall-allowlist.txt` and resolve at startup — IPs change, domains don't |
