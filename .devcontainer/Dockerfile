@@ -34,6 +34,27 @@ RUN arch="$(dpkg --print-architecture)" \
     && rm /tmp/git-delta.deb \
     && delta --version
 
+# -- Docker CLI + Compose plugin -----------------------------------------------
+RUN <<'INSTALL_DOCKER'
+  set -eux
+  apt-get update
+  apt-get install -y --no-install-recommends \
+    ca-certificates curl gnupg
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/debian/gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  chmod a+r /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) \
+    signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/debian \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update
+  apt-get install -y --no-install-recommends \
+    docker-ce-cli docker-compose-plugin docker-buildx-plugin
+  rm -rf /var/lib/apt/lists/*
+INSTALL_DOCKER
+
 # -- gosu (privilege dropping for firewalled mode) -----------------------------
 # renovate: datasource=github-releases depName=tianon/gosu
 ARG GOSU_VERSION="1.19"
@@ -90,7 +111,7 @@ RUN printf '#!/bin/bash\ncat /tmp/firewall-allowed-ips.txt 2>/dev/null || echo "
 
 # -- Arbitrary UID support -----------------------------------------------------
 # Allow entrypoint to add a passwd entry for the running UID
-RUN chmod 0666 /etc/passwd
+RUN chmod 0666 /etc/passwd /etc/group
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
