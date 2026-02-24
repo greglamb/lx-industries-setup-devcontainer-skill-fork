@@ -47,7 +47,19 @@ The dev container likely needs tools CI images lack:
 - SSH client for git operations
 - Any interactive development tools
 
-**4. Present findings to the user** before proceeding.
+**4. Check for Docker/Compose usage:**
+
+Look for signals that the project needs Docker access inside the devcontainer:
+- Compose files: `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`
+- Container build files: `Dockerfile` or `Containerfile` outside `.devcontainer/`
+- Testcontainers dependencies in package manifests
+- References to `docker build`, `docker compose`, `podman build` in task runner scripts
+
+See [references/docker-support.md](references/docker-support.md) for the full detection signal list.
+
+If signals found, recommend enabling Docker CLI + Compose support. If none found, still offer the option.
+
+**5. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
 
@@ -62,6 +74,8 @@ Key principles:
 - Never set `WORKDIR` (worktree compatibility)
 - `chmod 1777` not `chmod 777`
 
+If Docker support was enabled in Phase 1, also add the Docker CLI layer and `/etc/group` writable. See [references/docker-support.md](references/docker-support.md) for the Dockerfile additions and entrypoint GID handling.
+
 ### Phase 3: devcontainer.json
 
 Generate `.devcontainer/devcontainer.json`. Ask the user whether to share host Claude Code settings or start isolated.
@@ -72,6 +86,8 @@ Key decisions:
 - **Path A** (host settings): dual `~/.claude` bind mount + `~/.claude.json` mount
 - **Path B** (isolated): named Docker volume, no host config
 - Both paths: `"init": true`, host-native `workspaceFolder`, read-only `.gitconfig`, SSH agent socket, `COLORTERM` forwarding
+
+If Docker support was enabled in Phase 1, add the Docker socket bind-mount (`/var/run/docker.sock`). The entrypoint handles GID — no `runArgs` needed.
 
 ### Phase 4: CI Validation
 
@@ -111,6 +127,8 @@ Key principles:
 - `gosu` for privilege drop after firewall setup
 - Always include `registry.npmjs.org` and `github.com` regardless of project
 
+If Docker support was enabled in Phase 1, add Docker Hub registry domains (`registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`) to the allowlist. Scan project Dockerfiles and compose files for additional registries. See [references/docker-support.md](references/docker-support.md).
+
 ### Phase 6: Task Runner Integration
 
 **Wrap the container launch** in a task runner recipe so the entry point is `just dev-shell` (or equivalent).
@@ -124,6 +142,8 @@ Key principles:
 - TTY auto-detection
 - `--firewall` flag for opt-in firewall mode
 - Single recipe, not separate isolated/full variants
+
+If Docker support was enabled in Phase 1, add a conditional Docker socket mount with `--group-add` to the recipe. See [references/docker-support.md](references/docker-support.md).
 
 ### Phase 7: Testing
 
@@ -144,6 +164,15 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] `claude plugin list` shows all plugins enabled (Path A only)
 - [ ] Any project-specific build commands succeed
 
+**Docker verification (Docker support only):**
+- [ ] `docker version` — CLI installed, daemon reachable via socket
+- [ ] `docker compose version` — compose plugin installed
+- [ ] `docker buildx version` — buildx plugin installed
+- [ ] `docker info` — full daemon connectivity
+- [ ] `docker run --rm hello-world` — end-to-end pull + run + cleanup
+- [ ] `docker build -t test-build - <<< 'FROM alpine' && docker rmi test-build` — can build images
+- [ ] If firewall enabled: `docker pull alpine` succeeds (Docker Hub allowlisted)
+
 **Firewall verification (Phase 5 only):**
 
 Run with the firewall flag (e.g., `just dev-shell --firewall <command>`):
@@ -163,3 +192,4 @@ Before generating any file, consult the relevant reference for detailed patterns
 - **[references/firewall.md](references/firewall.md)** — Network firewall: allowlist, script, Dockerfile/entrypoint additions
 - **[references/task-runner.md](references/task-runner.md)** — Task runner recipe with `--firewall` flag
 - **[references/common-mistakes.md](references/common-mistakes.md)** — Common mistakes and red flags to avoid
+- **[references/docker-support.md](references/docker-support.md)** — Docker CLI + Compose: detection signals, Dockerfile layer, socket GID handling, firewall domains
