@@ -35,6 +35,14 @@
 | Running as root without workspace UID inference | Entrypoint must detect root-without-explicit-UID and `stat` the workspace to infer the target UID — otherwise IDEs like Zed (which ignore `remoteUser`) create files owned by root |
 | gosu condition only checks `DEVCONTAINER_UID` | Check `target_uid != 0` instead — gosu must also trigger when the target was inferred from the workspace owner, not just when explicitly set via env var |
 | No `DEVCONTAINER_WORKSPACE` env var | Pass `DEVCONTAINER_WORKSPACE` in devcontainer.json (`containerEnv`) and task runner (`-e` flag) — the entrypoint falls back to `$(pwd)` but explicit is more reliable |
+| Installing `dockerd` (daemon) inside devcontainer | Use socket mount — host daemon handles all execution via `/var/run/docker.sock` |
+| Hardcoding Docker GID (e.g., 999 or 998) | Detect at runtime: `stat -c '%g' /var/run/docker.sock` in task runner, entrypoint for IDE paths |
+| `/etc/group` not writable for Docker GID injection | `chmod 0666 /etc/group` alongside `/etc/passwd` in Dockerfile |
+| Socket mount without GID handling | Use `--group-add` in task runner, or entrypoint GID injection for IDE paths |
+| Missing Docker Hub domains in firewall allowlist | Add `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` when Docker is enabled |
+| Using standalone `docker-compose` (v1) | Install `docker-compose-plugin` (v2) — runs as `docker compose` subcommand |
+| Mounting Docker socket unconditionally in task runner | Check `-S /var/run/docker.sock` first — socket may not exist on all hosts |
+| Not scanning compose/Dockerfiles for registries | Firewall silently blocks unlisted registries — scan `FROM` and `image:` for additional domains |
 
 ## Red Flags
 
@@ -46,6 +54,8 @@
 - Use `initializeCommand` — it runs on the **host**, not in the container. A malicious or compromised `devcontainer.json` can use it to execute arbitrary code with the user's full privileges before the container even starts. Prefer `onCreateCommand` or `postCreateCommand` (which run inside the container) instead
 - Hardcode domain IPs in the firewall — resolve from domain names at startup
 - Enable the firewall by default — it breaks normal development; require explicit opt-in (`--firewall`)
+- Install `dockerd` or `containerd` inside a devcontainer — use the host daemon via socket mount
+- Hardcode the Docker socket GID — it varies per host (999, 998, 133, etc.)
 
 **Always:**
 - Analyze the project before writing the Dockerfile
@@ -57,3 +67,5 @@
 - Self-test the firewall (verify a blocked domain is unreachable, verify an allowed domain is reachable)
 - Set `containerUser`, `remoteUser`, and `updateRemoteUserUID` in devcontainer.json
 - Test the container started as root without `--user` to verify the entrypoint drops to the workspace owner UID
+- Scan for Docker support signals during Phase 1 project analysis (compose files, Dockerfiles, Testcontainers deps)
+- Use `--group-add` for CLI and entrypoint GID injection for IDE Docker socket access
