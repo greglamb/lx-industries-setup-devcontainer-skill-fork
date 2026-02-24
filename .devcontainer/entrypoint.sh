@@ -24,6 +24,17 @@ if ! getent passwd "$target_uid" >/dev/null 2>&1; then
     echo "dev:x:${target_uid}:${target_gid}:dev:${HOME}:/bin/bash" >> /etc/passwd
 fi
 
+# -- Docker socket access (match host GID) ------------------------------------
+# Only needed when running as root (IDE paths). CLI --user + --group-add handles it.
+if [[ -S /var/run/docker.sock ]] && [[ "$(id -u)" = "0" ]]; then
+    docker_gid="$(stat -c '%g' /var/run/docker.sock)"
+    if ! getent group "$docker_gid" >/dev/null 2>&1; then
+        echo "docker:x:${docker_gid}:" >> /etc/group
+    fi
+    group_name="$(getent group "$docker_gid" | cut -d: -f1)"
+    usermod -aG "$group_name" "$(getent passwd "$target_uid" | cut -d: -f1)" 2>/dev/null || true
+fi
+
 # -- Firewall (firewalled mode only) -------------------------------------------
 # Requires: root, NET_ADMIN capability, DEVCONTAINER_FIREWALL=1
 if [[ "${DEVCONTAINER_FIREWALL:-}" = "1" ]] && [[ "$(id -u)" = "0" ]]; then
