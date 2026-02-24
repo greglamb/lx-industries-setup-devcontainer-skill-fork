@@ -13,6 +13,7 @@
     "source=${localEnv:HOME}/.claude,target=/tmp/home/.claude,type=bind",
     "source=${localEnv:HOME}/.claude,target=${localEnv:HOME}/.claude,type=bind",
     "source=${localEnv:HOME}/.claude.json,target=/tmp/home/.claude.json,type=bind",
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=${localEnv:SSH_AUTH_SOCK},target=/tmp/ssh-agent.sock,type=bind"
   ],
   "remoteEnv": {
