@@ -35,6 +35,11 @@ dev-shell *args:
         -v "$HOME/.claude:$HOME/.claude"
     )
     [[ -f "$HOME/.claude.json" ]] && run_args+=(-v "$HOME/.claude.json:/tmp/home/.claude.json")
+    # Docker socket (conditional — may not exist on all hosts)
+    if [[ -S /var/run/docker.sock ]]; then
+        run_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
+        run_args+=(--group-add "$(stat -c '%g' /var/run/docker.sock)")
+    fi
     if [[ $# -eq 0 ]]; then
         exec docker run "${run_args[@]}" setup-devcontainer-skill-devcontainer bash
     else
