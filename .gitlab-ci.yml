@@ -35,6 +35,7 @@ devcontainer:smoke-test:
         for cmd in \
           curl git ssh jq less fzf ps unzip gpg python3 delta \
           glab claude gosu \
+          docker \
           iptables ipset ip dig \
         ; do
           command -v "$cmd" >/dev/null || { echo "MISSING: $cmd"; exit 1; }
