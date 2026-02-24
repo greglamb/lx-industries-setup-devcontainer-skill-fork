@@ -39,6 +39,9 @@ Populate package registries from the package managers detected in Phase 1. Commo
 | composer | `repo.packagist.org`, `packagist.org` |
 | maven / gradle | `repo1.maven.org` |
 | rubygems | `rubygems.org` |
+| docker (Docker Hub) | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` |
+
+When Docker support is enabled, also scan `FROM` directives in project Dockerfiles and `image:` fields in compose files to detect additional registries (GHCR, GitLab, GCR, GAR, ECR). See [docker-support.md](docker-support.md) for the full registry detection table.
 
 Always include `registry.npmjs.org` even if the project doesn't use Node.js — Claude Code runs `npm install` for MCP servers at runtime.
 
