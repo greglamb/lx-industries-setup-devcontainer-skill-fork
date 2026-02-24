@@ -48,6 +48,16 @@ Place these in the environment section alongside `HOME`, `PATH`, etc.
 5. Runtime configuration (git, SSH)
 6. Non-root user creation (for `remoteUser` + `updateRemoteUserUID`)
 
+## Docker CLI + Compose (optional)
+
+When the project needs Docker access inside the devcontainer (detected in Phase 1), install the Docker CLI tools from Docker's official APT repo. See [docker-support.md](docker-support.md) for the full Dockerfile layer, detection signals, and entrypoint GID handling.
+
+Key points:
+- Install `docker-ce-cli`, `docker-compose-plugin`, and `docker-buildx-plugin` — never `docker-ce` (no daemon)
+- Installs latest available versions from Docker's APT repo. No Renovate annotation — APT packages in a third-party repo lack a suitable Renovate datasource.
+- Place the layer after system packages and before forge CLI installs
+- Add `chmod 0666 /etc/group` alongside `/etc/passwd` for Docker GID injection
+
 ## Claude Code (native binary, auto-updates)
 
 The native binary is self-contained (bundles its own Node.js runtime). Set `HOME` and `PATH` **before** the install so the installer places the binary at the correct location:
