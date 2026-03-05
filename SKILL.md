@@ -59,7 +59,19 @@ See [references/docker-support.md](references/docker-support.md) for the full de
 
 If signals found, recommend enabling Docker CLI + Compose support. If none found, still offer the option.
 
-**5. Present findings to the user** before proceeding.
+**5. Detect DinD runners (GitLab only):**
+
+If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runners available to the project:
+
+1. Run `glab api projects/:id/runners --paginate` to list all runners (`:id` is auto-resolved by `glab` from the current git remote)
+2. Sort runners by priority: project → group → instance scope, online before offline
+3. Fetch runner details in priority order (`glab api runners/<runner-id>`) to get `tag_list` (the list endpoint does not return tags). Stop after the first runner whose `tag_list` contains a tag matching `dind` or `docker-in-docker` (case-insensitive substring match)
+4. If the runner list exceeds 30 entries and no project/group runner matched, skip instance runners and fall back to manual input — large shared runner pools rarely have identifiable DinD tags
+5. Store the matched runner's DinD-related tags for use in Phase 4
+
+If `glab` is not available or not authenticated, or no DinD runner is found: warn the user and ask them to provide the DinD runner tag manually.
+
+**6. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
 
