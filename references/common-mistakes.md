@@ -43,6 +43,9 @@
 | Using standalone `docker-compose` (v1) | Install `docker-compose-plugin` (v2) — runs as `docker compose` subcommand |
 | Mounting Docker socket unconditionally in task runner | Check `-S /var/run/docker.sock` first — socket may not exist on all hosts |
 | Not scanning compose/Dockerfiles for registries | Firewall silently blocks unlisted registries — scan `FROM` and `image:` for additional domains |
+| Missing dev tools that CI validates against | Scan CI configs and project manifests for lint/format/test tools — if CI runs it, the devcontainer needs it. See [dev-tools.md](dev-tools.md) |
+| Installing project-managed dev tools globally in Dockerfile | If the tool is declared in a project dependency file (pyproject.toml dev group, package.json devDependencies), skip the Dockerfile install — the project's package manager handles it |
+| Pinning rustup components with Renovate | clippy and rustfmt are bundled with the Rust toolchain — they follow the toolchain version, not their own |
 
 ## Red Flags
 
@@ -69,3 +72,4 @@
 - Test the container started as root without `--user` to verify the entrypoint drops to the workspace owner UID
 - Scan for Docker support signals during Phase 1 project analysis (compose files, Dockerfiles, Testcontainers deps)
 - Use `--group-add` for CLI and entrypoint GID injection for IDE Docker socket access
+- Scan CI configs and project manifests for ecosystem dev tools during Phase 1 project analysis
