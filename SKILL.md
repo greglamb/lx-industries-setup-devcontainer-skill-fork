@@ -47,7 +47,20 @@ The dev container likely needs tools CI images lack:
 - SSH client for git operations
 - Any interactive development tools
 
-**4. Check for Docker/Compose usage:**
+**4. Detect ecosystem dev tools:**
+
+Identify dev/lint/format/test tools the project depends on by scanning two sources:
+
+- **CI configs** — look for tool invocations in scripts (e.g., `cargo clippy`, `ruff check`, `golangci-lint run`, `prettier --check`)
+- **Project manifests** — look for tool declarations in dependency files and config files (e.g., `pyproject.toml` dev groups, `package.json` devDependencies, `.golangci.yml`, `.clippy.toml`)
+
+For each detected tool, determine the install scope:
+- **Project-managed** — declared in the project's dependency file → skip Dockerfile install, the project's package manager handles it
+- **Global** — invoked in CI or configured in the project but not a project dependency → install in the Dockerfile
+
+See [references/dev-tools.md](references/dev-tools.md) for detection signals, install scope rules, and Dockerfile patterns per ecosystem.
+
+**5. Check for Docker/Compose usage:**
 
 Look for signals that the project needs Docker access inside the devcontainer:
 - Compose files: `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`
@@ -59,7 +72,7 @@ See [references/docker-support.md](references/docker-support.md) for the full de
 
 If signals found, recommend enabling Docker CLI + Compose support. If none found, still offer the option.
 
-**5. Detect DinD runners (GitLab only):**
+**6. Detect DinD runners (GitLab only):**
 
 If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runners available to the project:
 
@@ -71,7 +84,7 @@ If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runn
 
 If `glab` is not available or not authenticated, or no DinD runner is found: warn the user and ask them to provide the DinD runner tag manually.
 
-**6. Present findings to the user** before proceeding.
+**7. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
 
@@ -87,6 +100,8 @@ Key principles:
 - `chmod 1777` not `chmod 777`
 
 If Docker support was enabled in Phase 1, also add the Docker CLI layer and `/etc/group` writable. See [references/docker-support.md](references/docker-support.md) for the Dockerfile additions and entrypoint GID handling.
+
+If ecosystem dev tools were detected in Phase 1, add the appropriate install layers. See [references/dev-tools.md](references/dev-tools.md) for Dockerfile patterns, Renovate annotations, and layer placement per ecosystem. Only install tools that need global scope — skip tools managed by the project's dependency file.
 
 ### Phase 3: devcontainer.json
 
@@ -194,6 +209,7 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] `claude --version` works with mounted config
 - [ ] `claude plugin list` shows all plugins enabled (Path A only)
 - [ ] Any project-specific build commands succeed
+- [ ] Ecosystem dev tools work, if installed (e.g., `cargo clippy --version`, `ruff --version`, `golangci-lint --version`)
 
 **Docker verification (Docker support only):**
 - [ ] `docker version` — CLI installed, daemon reachable via socket
@@ -224,3 +240,4 @@ Before generating any file, consult the relevant reference for detailed patterns
 - **[references/task-runner.md](references/task-runner.md)** — Task runner recipe with `--firewall` flag
 - **[references/common-mistakes.md](references/common-mistakes.md)** — Common mistakes and red flags to avoid
 - **[references/docker-support.md](references/docker-support.md)** — Docker CLI + Compose: detection signals, Dockerfile layer, socket GID handling, firewall domains
+- **[references/dev-tools.md](references/dev-tools.md)** — Ecosystem dev tools: detection signals, install scope rules, Dockerfile patterns
