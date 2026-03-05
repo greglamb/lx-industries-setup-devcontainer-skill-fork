@@ -105,7 +105,7 @@ If Docker support was enabled in Phase 1, add the Docker socket bind-mount (`/va
 
 Add CI jobs that run on changes to `.devcontainer/`:
 
-**Schema validation:**
+**Schema validation** (no Docker required):
 
 ```yaml
 devcontainer:validate:
@@ -113,18 +113,37 @@ devcontainer:validate:
   image: ghcr.io/astral-sh/uv:<python-variant>@sha256:<digest>
   script:
     - uvx check-jsonschema --schemafile "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json" .devcontainer/devcontainer.json
+  rules:
+    - changes:
+        - .devcontainer/**/*
+        - .gitlab-ci.yml
 ```
 
-**Build verification:**
+**Build verification** (requires DinD):
+
+If the target `.gitlab-ci.yml` already has a `.docker` hidden job, verify it includes a `tags:` entry with the DinD tag detected in Phase 1. Add the tag if missing. Do not add `rules:` to `.docker` — put rules on the consuming jobs so the anchor stays reusable.
+
+If no `.docker` hidden job exists, generate the full block using the DinD tag(s) from Phase 1:
 
 ```yaml
+.docker:
+  image: docker:<version>@sha256:<digest>
+  services:
+    - docker:<version>-dind@sha256:<digest>
+  tags:
+    - <detected-dind-tag>
+
 devcontainer:build:
-  # requires Docker-in-Docker or equivalent
+  extends: .docker
   script:
     - docker build .devcontainer/
+  rules:
+    - changes:
+        - .devcontainer/**/*
+        - .gitlab-ci.yml
 ```
 
-Both jobs should only trigger on changes to `.devcontainer/*` or the CI file itself.
+Both jobs should only trigger on changes to `.devcontainer/**/*` or the CI file itself.
 
 ### Phase 5: Network Firewall (Optional)
 
