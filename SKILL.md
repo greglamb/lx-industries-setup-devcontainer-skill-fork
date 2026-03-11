@@ -84,6 +84,12 @@ If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runn
 
 If `glab` is not available or not authenticated, or no DinD runner is found: warn the user and ask them to provide the DinD runner tag manually.
 
+**6. Check for superpowers plugin:**
+
+If `~/.claude/settings.json` is readable on the host, check whether `enabledPlugins` contains `"superpowers@claude-plugins-official": true`.
+
+If found, note it for Phase 3 — when the user chooses Path A (host settings), the brainstorming visual companion needs port forwarding to be reachable from the host browser.
+
 **7. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
@@ -115,6 +121,12 @@ Key decisions:
 - Both paths: `"init": true`, host-native `workspaceFolder`, read-only `.gitconfig`, SSH agent socket, `COLORTERM` forwarding
 
 If Docker support was enabled in Phase 1, add the Docker socket bind-mount (`/var/run/docker.sock`). The entrypoint handles GID — no `runArgs` needed.
+
+If superpowers was detected in Phase 1 (Path A only), propose visual companion port forwarding:
+
+> "Superpowers visual companion needs a forwarded port to display in your host browser. Suggested port: 19452. Use a different one?"
+
+Add `forwardPorts`, `portsAttributes` (label: "Brainstorm Companion", onAutoForward: "silent"), and `remoteEnv` entries for `BRAINSTORM_PORT` (with `${localEnv:BRAINSTORM_PORT:19452}` fallback), `BRAINSTORM_HOST` (`0.0.0.0`), and `BRAINSTORM_URL_HOST` (`localhost`). See [references/devcontainer-json.md](references/devcontainer-json.md) for the full snippet.
 
 ### Phase 4: CI Validation
 
@@ -191,6 +203,8 @@ Key principles:
 
 If Docker support was enabled in Phase 1, add a conditional Docker socket mount with `--group-add` to the recipe. See [references/docker-support.md](references/docker-support.md).
 
+If superpowers was detected in Phase 1, add `BRAINSTORM_PORT` variable with env override (default: 19452) and publish the port with `-p` and `-e` flags for `BRAINSTORM_PORT`, `BRAINSTORM_HOST`, and `BRAINSTORM_URL_HOST`. See [references/task-runner.md](references/task-runner.md) for the recipe additions.
+
 ### Phase 7: Testing
 
 Run verifications inside the built container using the task runner recipe from Phase 6 (e.g., `just dev-shell <command>`). If no task runner was configured, use `docker run` directly.
@@ -219,6 +233,11 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] `docker run --rm hello-world` — end-to-end pull + run + cleanup
 - [ ] `docker build -t test-build - <<< 'FROM alpine' && docker rmi test-build` — can build images
 - [ ] If firewall enabled: `docker pull alpine` succeeds (Docker Hub allowlisted)
+
+**Superpowers visual companion verification (Path A with superpowers only):**
+- [ ] `echo $BRAINSTORM_PORT` — env var is set (default: 19452)
+- [ ] `echo $BRAINSTORM_HOST` — is `0.0.0.0`
+- [ ] Port mapping exists (IDE: implicit via `forwardPorts`; CLI: confirm with `docker port`)
 
 **Firewall verification (Phase 5 only):**
 

@@ -26,6 +26,8 @@ If a task runner is found, **ask the user** whether they want devcontainer recip
 ## Example recipe structure (adapt to the project's task runner)
 
 ```just
+BRAINSTORM_PORT := env("BRAINSTORM_PORT", "19452")
+
 # Launch an interactive devcontainer shell (e.g. `just dev-shell`, `just dev-shell claude`)
 # Add --firewall for network-firewalled autonomous mode.
 [positional-arguments]
@@ -68,6 +70,11 @@ dev-shell *args:
         run_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
         run_args+=(--group-add "$(stat -c '%g' /var/run/docker.sock)")
     fi
+    # Visual companion port (superpowers brainstorming)
+    run_args+=(-p "${BRAINSTORM_PORT}:${BRAINSTORM_PORT}")
+    run_args+=(-e "BRAINSTORM_PORT=${BRAINSTORM_PORT}")
+    run_args+=(-e "BRAINSTORM_HOST=0.0.0.0")
+    run_args+=(-e "BRAINSTORM_URL_HOST=localhost")
     if [[ $# -eq 0 ]]; then
         exec docker run "${run_args[@]}" <project>-devcontainer bash
     else
@@ -84,3 +91,4 @@ dev-shell *args:
 - **`--firewall` flag** — opt-in firewall mode. Without it, the container runs as the host UID with full internet access (normal development). With it, the container starts as root with `NET_ADMIN`/`NET_RAW`, the entrypoint runs the firewall, then drops to the host UID via `gosu`. Usage: `just dev-shell --firewall claude` for firewalled autonomous mode.
 - **`DEVCONTAINER_WORKSPACE`** — passed to the entrypoint so it knows which directory to `stat` for workspace owner inference. Redundant in normal mode (the entrypoint doesn't need it when not root), but consistent with devcontainer.json's `containerEnv` and useful if the recipe is adapted for root-based modes.
 - **Docker socket mount** — conditional on socket existence (`-S /var/run/docker.sock`). Uses `--group-add` to add the host Docker GID as a supplementary group. Works with both `--user` (normal mode) and root+gosu (firewall mode). Only added when Docker support is enabled.
+- **Visual companion port** — publishes `BRAINSTORM_PORT` (default 19452, overridable via host env var) so the superpowers brainstorming companion is reachable from the host browser. Also sets `BRAINSTORM_HOST=0.0.0.0` (bind to all interfaces) and `BRAINSTORM_URL_HOST=localhost` (correct hostname in printed URL). Only added when superpowers is detected in Phase 1.

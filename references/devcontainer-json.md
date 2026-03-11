@@ -37,6 +37,37 @@ Shares the host's `~/.claude` and `~/.claude.json` with the container. Plugins, 
 
 The `~/.claude` directory requires **two bind mounts** — one at `$HOME/.claude` (container HOME) and one at the host-native path (e.g. `/home/user/.claude`). This is a workaround for [claude-code#10379](https://github.com/anthropics/claude-code/issues/10379): plugin manifests store absolute host paths for marketplace and install locations. Without the second mount, plugins fail with "not found in marketplace". A symlink won't work because the host-native workspace mount creates the host home directory owned by root, blocking symlink creation by non-root users. Both bind mounts of the same host directory share the underlying filesystem — writes at either path are immediately visible at the other.
 
+### Superpowers visual companion (optional, Path A only)
+
+When the superpowers plugin is detected in `~/.claude/settings.json` (`enabledPlugins` contains `superpowers@claude-plugins-official`), propose a fixed port for the brainstorming visual companion. The companion starts an HTTP+WebSocket server inside the container that must be reachable from the host browser.
+
+Add to the generated `devcontainer.json`:
+
+```json
+{
+  "forwardPorts": [19452],
+  "portsAttributes": {
+    "19452": {
+      "label": "Brainstorm Companion",
+      "onAutoForward": "silent"
+    }
+  },
+  "remoteEnv": {
+    "BRAINSTORM_PORT": "${localEnv:BRAINSTORM_PORT:19452}",
+    "BRAINSTORM_HOST": "0.0.0.0",
+    "BRAINSTORM_URL_HOST": "localhost"
+  }
+}
+```
+
+Key points:
+- **`BRAINSTORM_PORT`**: The companion reads this env var. `${localEnv:BRAINSTORM_PORT:19452}` uses the host env var if set, falls back to 19452. Without a fixed port, the companion picks a random ephemeral port that can't be pre-configured for forwarding.
+- **`BRAINSTORM_HOST=0.0.0.0`**: The companion binds to `127.0.0.1` by default, which is unreachable from outside the container. Setting this makes it bind to all interfaces so port forwarding works.
+- **`BRAINSTORM_URL_HOST=localhost`**: Controls the hostname in the URL the companion prints. Without this, the URL would show `0.0.0.0`, which confuses users. `localhost` is correct for port-forwarded access.
+- **`onAutoForward: "silent"`**: The companion already prints its URL — a VS Code notification would be redundant.
+- Propose 19452 as the default and ask the user: "Use a different one?"
+- **`forwardPorts` limitation**: The devcontainer spec does not support variable substitution in `forwardPorts`, so the port number is hardcoded there. If the user overrides `BRAINSTORM_PORT` via a host env var, they must also update the `forwardPorts` value to match — otherwise IDE-based port forwarding will forward the wrong port. The task runner path (`-p` flag) uses the variable and is not affected.
+
 ## Path B: Without host settings (isolated)
 
 Fresh Claude Code with no host config sharing. Plugins must be installed inside the container. Uses named Docker volumes so config persists across container rebuilds but is independent of the host. Best for CI, shared team containers, or sandboxed environments. This is the approach used by the [official Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer).

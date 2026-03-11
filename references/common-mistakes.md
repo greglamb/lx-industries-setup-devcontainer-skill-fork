@@ -46,6 +46,9 @@
 | Missing dev tools that CI validates against | Scan CI configs and project manifests for lint/format/test tools — if CI runs it, the devcontainer needs it. See [dev-tools.md](dev-tools.md) |
 | Installing project-managed dev tools globally in Dockerfile | If the tool is declared in a project dependency file (pyproject.toml dev group, package.json devDependencies), skip the Dockerfile install — the project's package manager handles it |
 | Pinning rustup components with Renovate | clippy and rustfmt are bundled with the Rust toolchain — they follow the toolchain version, not their own |
+| Hardcoding `BRAINSTORM_PORT` without env override | Use `${localEnv:BRAINSTORM_PORT:19452}` in devcontainer.json and `env("BRAINSTORM_PORT", "19452")` in task runner |
+| Not setting `BRAINSTORM_HOST=0.0.0.0` for visual companion | The companion binds to `127.0.0.1` by default — unreachable from outside the container |
+| Setting `BRAINSTORM_HOST=0.0.0.0` without `BRAINSTORM_URL_HOST=localhost` | The printed URL shows `0.0.0.0` which confuses users — set `BRAINSTORM_URL_HOST=localhost` |
 
 ## Red Flags
 
@@ -59,6 +62,7 @@
 - Enable the firewall by default — it breaks normal development; require explicit opt-in (`--firewall`)
 - Install `dockerd` or `containerd` inside a devcontainer — use the host daemon via socket mount
 - Hardcode the Docker socket GID — it varies per host (999, 998, 133, etc.)
+- Hardcode `BRAINSTORM_PORT` without allowing env override — the user may need a different port
 
 **Always:**
 - Analyze the project before writing the Dockerfile
@@ -73,3 +77,4 @@
 - Scan for Docker support signals during Phase 1 project analysis (compose files, Dockerfiles, Testcontainers deps)
 - Use `--group-add` for CLI and entrypoint GID injection for IDE Docker socket access
 - Scan CI configs and project manifests for ecosystem dev tools during Phase 1 project analysis
+- Set `BRAINSTORM_HOST=0.0.0.0` and `BRAINSTORM_URL_HOST=localhost` alongside `BRAINSTORM_PORT` when configuring the visual companion
