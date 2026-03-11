@@ -75,6 +75,18 @@ dev-shell *args:
     run_args+=(-e "BRAINSTORM_PORT=${BRAINSTORM_PORT}")
     run_args+=(-e "BRAINSTORM_HOST=0.0.0.0")
     run_args+=(-e "BRAINSTORM_URL_HOST=localhost")
+    # Voice mode audio (conditional)
+    if [ -S "<detected_socket_path>" ]; then
+        run_args+=(-v "<detected_socket_path>:/tmp/pulse.socket:ro")
+        run_args+=(-e "PULSE_SERVER=unix:/tmp/pulse.socket")
+        if [ -f "${HOME}/.config/pulse/cookie" ]; then
+            run_args+=(-v "${HOME}/.config/pulse/cookie:/tmp/pulse.cookie:ro")
+            run_args+=(-e "PULSE_COOKIE=/tmp/pulse.cookie")
+        elif [ -f "${HOME}/.pulse-cookie" ]; then
+            run_args+=(-v "${HOME}/.pulse-cookie:/tmp/pulse.cookie:ro")
+            run_args+=(-e "PULSE_COOKIE=/tmp/pulse.cookie")
+        fi
+    fi
     if [[ $# -eq 0 ]]; then
         exec docker run "${run_args[@]}" <project>-devcontainer bash
     else
@@ -92,3 +104,4 @@ dev-shell *args:
 - **`DEVCONTAINER_WORKSPACE`** — passed to the entrypoint so it knows which directory to `stat` for workspace owner inference. Redundant in normal mode (the entrypoint doesn't need it when not root), but consistent with devcontainer.json's `containerEnv` and useful if the recipe is adapted for root-based modes.
 - **Docker socket mount** — conditional on socket existence (`-S /var/run/docker.sock`). Uses `--group-add` to add the host Docker GID as a supplementary group. Works with both `--user` (normal mode) and root+gosu (firewall mode). Only added when Docker support is enabled.
 - **Visual companion port** — publishes `BRAINSTORM_PORT` (default 19452, overridable via host env var) so the superpowers brainstorming companion is reachable from the host browser. Also sets `BRAINSTORM_HOST=0.0.0.0` (bind to all interfaces) and `BRAINSTORM_URL_HOST=localhost` (correct hostname in printed URL). Only added when superpowers is detected in Phase 1.
+- **Voice mode audio** — conditional PulseAudio socket mount for Claude Code's `/voice` command. Checks socket existence at runtime (`-S`), then checks for cookie file at both XDG (`~/.config/pulse/cookie`) and legacy (`~/.pulse-cookie`) locations. All mounts are read-only. Only added when voice mode is enabled in Phase 1.

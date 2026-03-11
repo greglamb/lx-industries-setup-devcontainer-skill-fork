@@ -58,6 +58,31 @@ Key points:
 - Place the layer after system packages and before forge CLI installs
 - Add `chmod 0666 /etc/group` alongside `/etc/passwd` for Docker GID injection
 
+## Voice mode audio (optional)
+
+When the user opts in to voice mode during Phase 1, add the audio packages layer. Place after system packages, before Claude Code install:
+
+```dockerfile
+# Voice mode audio support (optional)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sox \
+    pulseaudio-utils \
+    libportaudio2 \
+    libasound2-plugins \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# PulseAudio client config — disable shared memory (required for socket passthrough in containers)
+RUN mkdir -p /etc/pulse && \
+    printf 'enable-shm = false\n' > /etc/pulse/client.conf
+```
+
+Key points:
+- No Renovate annotations — distro packages pinned by base image.
+- `--no-install-recommends` to avoid unnecessary dependencies.
+- `enable-shm = false` is required — PulseAudio shared memory does not work across container boundaries.
+- No build-time deps (`libasound2-dev`, `python3-dev`) — only runtime libraries needed.
+
 ## Claude Code (native binary, auto-updates)
 
 The native binary is self-contained (bundles its own Node.js runtime). Set `HOME` and `PATH` **before** the install so the installer places the binary at the correct location:

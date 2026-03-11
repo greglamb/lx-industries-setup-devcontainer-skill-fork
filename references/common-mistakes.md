@@ -49,6 +49,10 @@
 | Hardcoding `BRAINSTORM_PORT` without env override | Use `${localEnv:BRAINSTORM_PORT:19452}` in devcontainer.json and `env("BRAINSTORM_PORT", "19452")` in task runner |
 | Not setting `BRAINSTORM_HOST=0.0.0.0` for visual companion | The companion binds to `127.0.0.1` by default — unreachable from outside the container |
 | Setting `BRAINSTORM_HOST=0.0.0.0` without `BRAINSTORM_URL_HOST=localhost` | The printed URL shows `0.0.0.0` which confuses users — set `BRAINSTORM_URL_HOST=localhost` |
+| Forgetting `enable-shm = false` in `/etc/pulse/client.conf` | PulseAudio shared memory does not work across container boundaries — socket passthrough requires `enable-shm = false` |
+| Mounting PipeWire native socket (`pipewire-0`) instead of PulseAudio compat socket (`pulse/native`) | SoX speaks PulseAudio, not PipeWire — use the PulseAudio compat socket (created by `pipewire-pulse` on PipeWire hosts) |
+| Mounting PulseAudio cookie unconditionally | Check for cookie at both `~/.config/pulse/cookie` (XDG) and `~/.pulse-cookie` (legacy) — omit mount if neither exists (anonymous auth) |
+| Hardcoding `/run/user/1000/` for PulseAudio socket | Use `$XDG_RUNTIME_DIR/pulse/native` for detection; fall back to prompted path with `$(id -u)` hints |
 
 ## Red Flags
 
@@ -63,6 +67,7 @@
 - Install `dockerd` or `containerd` inside a devcontainer — use the host daemon via socket mount
 - Hardcode the Docker socket GID — it varies per host (999, 998, 133, etc.)
 - Hardcode `BRAINSTORM_PORT` without allowing env override — the user may need a different port
+- Mount `/dev/snd` for container audio — use PulseAudio socket passthrough instead (avoids exclusive device access and host conflicts)
 
 **Always:**
 - Analyze the project before writing the Dockerfile
@@ -78,3 +83,5 @@
 - Use `--group-add` for CLI and entrypoint GID injection for IDE Docker socket access
 - Scan CI configs and project manifests for ecosystem dev tools during Phase 1 project analysis
 - Set `BRAINSTORM_HOST=0.0.0.0` and `BRAINSTORM_URL_HOST=localhost` alongside `BRAINSTORM_PORT` when configuring the visual companion
+- Set `enable-shm = false` in `/etc/pulse/client.conf` when mounting PulseAudio socket into a container
+- Use the PulseAudio-compatible socket (`pulse/native`) even on PipeWire hosts — SoX speaks PulseAudio

@@ -90,7 +90,13 @@ If `~/.claude/settings.json` is readable on the host, check whether `enabledPlug
 
 If found, note it for Phase 3 — when the user chooses Path A (host settings), the brainstorming visual companion needs port forwarding to be reachable from the host browser.
 
-**7. Present findings to the user** before proceeding.
+**7. Check for voice mode support (Path A only):**
+
+Ask: "Do you want voice mode support (audio passthrough for `/voice`)?"
+
+If yes, detect the host's PulseAudio socket (`$XDG_RUNTIME_DIR/pulse/native`) and cookie (`$HOME/.config/pulse/cookie` or `$HOME/.pulse-cookie`). If not found, prompt with common paths. Validate the socket exists. See [references/voice-mode.md](references/voice-mode.md) for full detection logic.
+
+**8. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
 
@@ -108,6 +114,8 @@ Key principles:
 If Docker support was enabled in Phase 1, also add the Docker CLI layer and `/etc/group` writable. See [references/docker-support.md](references/docker-support.md) for the Dockerfile additions and entrypoint GID handling.
 
 If ecosystem dev tools were detected in Phase 1, add the appropriate install layers. See [references/dev-tools.md](references/dev-tools.md) for Dockerfile patterns, Renovate annotations, and layer placement per ecosystem. Only install tools that need global scope — skip tools managed by the project's dependency file.
+
+If voice mode was enabled in Phase 1, add the audio packages layer (sox, pulseaudio-utils, libportaudio2, libasound2-plugins, ffmpeg) and PulseAudio client config (`enable-shm = false`). See [references/voice-mode.md](references/voice-mode.md) for the Dockerfile layer.
 
 ### Phase 3: devcontainer.json
 
@@ -127,6 +135,8 @@ If superpowers was detected in Phase 1 (Path A only), propose visual companion p
 > "Superpowers visual companion needs a forwarded port to display in your host browser. Suggested port: 19452. Use a different one?"
 
 Add `forwardPorts`, `portsAttributes` (label: "Brainstorm Companion", onAutoForward: "silent"), and `remoteEnv` entries for `BRAINSTORM_PORT` (with `${localEnv:BRAINSTORM_PORT:19452}` fallback), `BRAINSTORM_HOST` (`0.0.0.0`), and `BRAINSTORM_URL_HOST` (`localhost`). See [references/devcontainer-json.md](references/devcontainer-json.md) for the full snippet.
+
+If voice mode was enabled in Phase 1 (Path A only), add the PulseAudio socket and cookie bind mounts (readonly) and `PULSE_SERVER`/`PULSE_COOKIE` env vars to `remoteEnv`. See [references/voice-mode.md](references/voice-mode.md) for the mount and env var configuration.
 
 ### Phase 4: CI Validation
 
@@ -205,6 +215,8 @@ If Docker support was enabled in Phase 1, add a conditional Docker socket mount 
 
 If superpowers was detected in Phase 1, add `BRAINSTORM_PORT` variable with env override (default: 19452) and publish the port with `-p` and `-e` flags for `BRAINSTORM_PORT`, `BRAINSTORM_HOST`, and `BRAINSTORM_URL_HOST`. See [references/task-runner.md](references/task-runner.md) for the recipe additions.
 
+If voice mode was enabled in Phase 1, add a conditional PulseAudio socket mount with cookie detection to the task runner recipe. See [references/voice-mode.md](references/voice-mode.md) for the recipe additions.
+
 ### Phase 7: Testing
 
 Run verifications inside the built container using the task runner recipe from Phase 6 (e.g., `just dev-shell <command>`). If no task runner was configured, use `docker run` directly.
@@ -239,6 +251,10 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] `echo $BRAINSTORM_HOST` — is `0.0.0.0`
 - [ ] Port mapping exists (IDE: implicit via `forwardPorts`; CLI: confirm with `docker port`)
 
+**Voice mode verification (voice mode only):**
+- [ ] `sox --version` — SoX is installed
+- [ ] `pactl info` — PulseAudio client reaches host server through socket
+
 **Firewall verification (Phase 5 only):**
 
 Run with the firewall flag (e.g., `just dev-shell --firewall <command>`):
@@ -260,3 +276,4 @@ Before generating any file, consult the relevant reference for detailed patterns
 - **[references/common-mistakes.md](references/common-mistakes.md)** — Common mistakes and red flags to avoid
 - **[references/docker-support.md](references/docker-support.md)** — Docker CLI + Compose: detection signals, Dockerfile layer, socket GID handling, firewall domains
 - **[references/dev-tools.md](references/dev-tools.md)** — Ecosystem dev tools: detection signals, install scope rules, Dockerfile patterns
+- **[references/voice-mode.md](references/voice-mode.md)** — Voice mode audio: PulseAudio socket detection, Dockerfile layer, mounts, task runner recipe, verification

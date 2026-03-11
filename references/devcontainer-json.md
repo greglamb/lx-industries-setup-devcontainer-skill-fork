@@ -68,6 +68,34 @@ Key points:
 - Propose 19452 as the default and ask the user: "Use a different one?"
 - **`forwardPorts` limitation**: The devcontainer spec does not support variable substitution in `forwardPorts`, so the port number is hardcoded there. If the user overrides `BRAINSTORM_PORT` via a host env var, they must also update the `forwardPorts` value to match — otherwise IDE-based port forwarding will forward the wrong port. The task runner path (`-p` flag) uses the variable and is not affected.
 
+### Voice mode audio passthrough (optional, Path A only)
+
+When voice mode is enabled in Phase 1, mount the host's PulseAudio socket and cookie into the container so Claude Code's `/voice` command can capture audio.
+
+Add to the generated `devcontainer.json` mounts:
+
+```json
+"source=<detected_socket_path>,target=/tmp/pulse.socket,type=bind,readonly",
+"source=<detected_cookie_path>,target=/tmp/pulse.cookie,type=bind,readonly"
+```
+
+Where `<detected_socket_path>` is the PulseAudio socket confirmed during Phase 1 (e.g., `/run/user/1000/pulse/native`). Where `<detected_cookie_path>` is the cookie file found during Phase 1 (e.g., `${localEnv:HOME}/.config/pulse/cookie`). Omit the cookie mount if no cookie was found.
+
+Add to `remoteEnv`:
+
+```json
+"PULSE_SERVER": "unix:/tmp/pulse.socket",
+"PULSE_COOKIE": "/tmp/pulse.cookie"
+```
+
+Key points:
+- **`PULSE_SERVER`**: Tells PulseAudio client where the server socket is. The `unix:` prefix specifies Unix domain socket transport.
+- **`PULSE_COOKIE`**: Authentication cookie. Omit if the host uses anonymous auth (no cookie file found).
+- **Socket is read-only**: The container only reads audio data through the socket.
+- **No `forwardPorts`**: This is a Unix socket mount, not a TCP port.
+- **No `runArgs` or capabilities**: PulseAudio socket passthrough works without elevated privileges.
+- Mount targets are in `/tmp/` — consistent with SSH agent (`/tmp/ssh-agent.sock`). The env vars tell PulseAudio where to find them.
+
 ## Path B: Without host settings (isolated)
 
 Fresh Claude Code with no host config sharing. Plugins must be installed inside the container. Uses named Docker volumes so config persists across container rebuilds but is independent of the host. Best for CI, shared team containers, or sandboxed environments. This is the approach used by the [official Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer).
