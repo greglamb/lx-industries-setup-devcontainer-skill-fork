@@ -81,11 +81,15 @@ Key decisions:
 Add to mounts array (where the source path is the detected/confirmed path from Phase 1):
 
 ```json
-"source=/run/user/1000/pulse/native,target=/tmp/pulse.socket,type=bind",
+"source=<detected_socket_path>,target=/tmp/pulse.socket,type=bind,readonly",
 "source=${localEnv:HOME}/.config/pulse/cookie,target=/tmp/pulse.cookie,type=bind,readonly"
 ```
 
-The `/run/user/1000/pulse/native` is replaced with whatever Phase 1 detected/confirmed.
+Where `<detected_socket_path>` is replaced with whatever Phase 1 detected/confirmed.
+
+The cookie mount uses `${localEnv:HOME}/.config/pulse/cookie` which is the standard XDG location. On older systems the cookie may be at `~/.pulse-cookie` — Phase 1 detection should check both locations and use whichever exists. If no cookie file is found, omit the cookie mount and `PULSE_COOKIE` env var (PulseAudio may use anonymous auth).
+
+No `runArgs` or capabilities are needed — PulseAudio socket passthrough works without elevated privileges.
 
 Add to remoteEnv:
 
@@ -103,10 +107,15 @@ Follow existing conditional mount pattern (same as Docker socket):
 ```bash
 # Voice mode audio (conditional)
 if [ -S "<detected_socket_path>" ]; then
-    mounts+=" -v <detected_socket_path>:/tmp/pulse.socket"
-    mounts+=" -v ${HOME}/.config/pulse/cookie:/tmp/pulse.cookie:ro"
-    envs+=" -e PULSE_SERVER=unix:/tmp/pulse.socket"
-    envs+=" -e PULSE_COOKIE=/tmp/pulse.cookie"
+    run_args+=(-v "<detected_socket_path>:/tmp/pulse.socket:ro")
+    run_args+=(-e "PULSE_SERVER=unix:/tmp/pulse.socket")
+    if [ -f "${HOME}/.config/pulse/cookie" ]; then
+        run_args+=(-v "${HOME}/.config/pulse/cookie:/tmp/pulse.cookie:ro")
+        run_args+=(-e "PULSE_COOKIE=/tmp/pulse.cookie")
+    elif [ -f "${HOME}/.pulse-cookie" ]; then
+        run_args+=(-v "${HOME}/.pulse-cookie:/tmp/pulse.cookie:ro")
+        run_args+=(-e "PULSE_COOKIE=/tmp/pulse.cookie")
+    fi
 fi
 ```
 
