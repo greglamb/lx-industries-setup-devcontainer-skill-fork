@@ -13,6 +13,8 @@ When triggered, the skill analyzes your project and generates a complete [Dev Co
 - **SSH agent forwarding** — bind-mounts the host SSH agent socket, no raw key files
 - **Claude Code integration** — native binary install, dual `~/.claude` mount workaround for plugin paths, `~/.claude.json` for preferences
 - **NPM supply-chain hardening** — blocks postinstall scripts and enforces 24h package age
+- **Docker CLI + Compose** — optional host socket mount with automatic GID handling for both IDE and CLI paths
+- **Voice mode audio** — optional PulseAudio socket passthrough so Claude Code's `/voice` command works inside the container
 - **Optional network firewall** — iptables egress filter with domain allowlist for sandboxed autonomous mode
 - **Task runner integration** — wraps the `docker run` invocation in a `just`/`make`/`task` recipe with `--firewall` flag
 - **CI validation** — schema validation and build verification jobs triggered on `.devcontainer/` changes
@@ -75,12 +77,14 @@ The allowlist is auto-populated from your project's package registries and forge
 ## File structure
 
 ```
-SKILL.md                         # Main skill (165 lines)
+SKILL.md                         # Main skill definition
 references/
   dockerfile.md                  # Dockerfile patterns and entrypoint
   devcontainer-json.md           # devcontainer.json for host and isolated modes
   firewall.md                    # Network firewall implementation
   task-runner.md                 # Task runner recipe with --firewall flag
+  docker-support.md              # Docker CLI + Compose socket mount
+  voice-mode.md                  # Voice mode PulseAudio passthrough
   common-mistakes.md             # Common mistakes and red flags
 ```
 
