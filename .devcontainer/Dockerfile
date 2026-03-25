@@ -12,6 +12,7 @@ ENV NPM_CONFIG_MINIMUM_RELEASE_AGE=1440
 
 # -- Forge CLI config directory ------------------------------------------------
 ENV GLAB_CONFIG_DIR=/tmp/glab-config
+ENV GH_CONFIG_DIR=/tmp/gh-config
 
 # -- System packages -----------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -73,6 +74,17 @@ RUN arch="$(dpkg --print-architecture)" \
     && glab --version \
     && rm -rf /tmp/glab-config \
     && mkdir -m 1777 /tmp/glab-config
+
+# -- GitHub CLI (gh) -----------------------------------------------------------
+# renovate: datasource=github-releases depName=cli/cli
+ARG GH_VERSION="2.88.1"
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.deb" -o /tmp/gh.deb \
+    && dpkg -i /tmp/gh.deb \
+    && rm /tmp/gh.deb \
+    && gh --version \
+    && rm -rf /tmp/gh-config \
+    && mkdir -m 1777 /tmp/gh-config
 
 # -- Claude Code (native binary, auto-updates) --------------------------------
 # HOME is set above so the installer places the binary at $HOME/.local/bin/claude

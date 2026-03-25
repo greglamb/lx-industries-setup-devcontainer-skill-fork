@@ -43,7 +43,7 @@ If the project already builds CI images with the right toolchain, **reuse them a
 
 The dev container likely needs tools CI images lack:
 - Claude Code (self-contained native binary — no Node.js dependency)
-- Git forge CLI (`glab`, `gh`)
+- Git forge CLIs — both `glab` and `gh` are always installed regardless of project forge; host config directories (`~/.config/glab-cli`, `~/.config/gh`) determine which are pre-authenticated
 - SSH client for git operations
 - Any interactive development tools
 
@@ -231,7 +231,8 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] NPM hardening envs are set (`NPM_CONFIG_IGNORE_SCRIPTS=true`, `NPM_CONFIG_MINIMUM_RELEASE_AGE=1440`)
 - [ ] SSH agent is accessible (`ssh-add -l` lists keys)
 - [ ] SSH-based git operations work (`git ls-remote` or `ssh -T git@<forge>`)
-- [ ] Forge CLI authenticates with mounted config
+- [ ] Both forge CLIs are available (`glab --version`, `gh --version`)
+- [ ] Forge CLIs with mounted config authenticate (`glab auth status`, `gh auth status` for whichever has host config)
 - [ ] `claude --version` works with mounted config
 - [ ] `claude plugin list` shows all plugins enabled (Path A only)
 - [ ] Any project-specific build commands succeed

@@ -110,19 +110,33 @@ Key details:
 
 ## Forge CLI config directory cleanup
 
-CLI tools like `glab` and `gh` create config files when run during the build (e.g., `glab --version`). These files are owned by root with restrictive permissions (`0600`), causing "permission denied" errors for non-root users at runtime. Clean up after the version check and recreate the directory as world-writable:
+Both `glab` (GitLab) and `gh` (GitHub) CLIs are always installed regardless of project forge. Each CLI creates config files when run during the build (e.g., `--version`). These files are owned by root with restrictive permissions (`0600`), causing "permission denied" errors for non-root users at runtime. Clean up after the version check and recreate the directory as world-writable:
 
 ```dockerfile
-ENV <FORGE_CLI>_CONFIG_DIR=/tmp/<forge>-config
+ENV GLAB_CONFIG_DIR=/tmp/glab-config
+ENV GH_CONFIG_DIR=/tmp/gh-config
 
-# `<forge-cli> --version` creates $<FORGE_CLI>_CONFIG_DIR owned by root with 0600 files.
-# Remove it and recreate as world-writable so non-root users can either:
-#   - bind-mount their host config at runtime, or
-#   - let the CLI create a fresh config on first use
-RUN <install-forge-cli> \
-    && <forge-cli> --version \
-    && rm -rf /tmp/<forge>-config \
-    && mkdir -m 1777 /tmp/<forge>-config
+# -- GitLab CLI (glab) ---------------------------------------------------------
+# renovate: datasource=gitlab-releases depName=gitlab-org/cli registryUrl=https://gitlab.com
+ARG GLAB_VERSION="<version>"
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_${arch}.deb" -o /tmp/glab.deb \
+    && dpkg -i /tmp/glab.deb \
+    && rm /tmp/glab.deb \
+    && glab --version \
+    && rm -rf /tmp/glab-config \
+    && mkdir -m 1777 /tmp/glab-config
+
+# -- GitHub CLI (gh) -----------------------------------------------------------
+# renovate: datasource=github-releases depName=cli/cli
+ARG GH_VERSION="<version>"
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.deb" -o /tmp/gh.deb \
+    && dpkg -i /tmp/gh.deb \
+    && rm /tmp/gh.deb \
+    && gh --version \
+    && rm -rf /tmp/gh-config \
+    && mkdir -m 1777 /tmp/gh-config
 ```
 
 This ensures both modes work: bind-mounting host config (overrides the directory) and running without a mount (CLI creates fresh config in the writable directory).

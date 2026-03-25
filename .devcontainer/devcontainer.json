@@ -9,6 +9,7 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "mounts": [
     "source=${localEnv:HOME}/.config/glab-cli,target=/tmp/glab-config,type=bind",
+    "source=${localEnv:HOME}/.config/gh,target=/tmp/gh-config,type=bind",
     "source=${localEnv:HOME}/.gitconfig,target=/tmp/home/.gitconfig,type=bind,readonly",
     "source=${localEnv:HOME}/.claude,target=/tmp/home/.claude,type=bind",
     "source=${localEnv:HOME}/.claude,target=${localEnv:HOME}/.claude,type=bind",
