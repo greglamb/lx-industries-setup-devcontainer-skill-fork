@@ -26,14 +26,26 @@ If a task runner is found, **ask the user** whether they want devcontainer recip
 ## Example recipe structure (adapt to the project's task runner)
 
 ```just
-BRAINSTORM_PORT := env("BRAINSTORM_PORT", "19452")
-
 # Launch an interactive devcontainer shell (e.g. `just dev-shell`, `just dev-shell claude`)
 # Add --firewall for network-firewalled autonomous mode.
 [positional-arguments]
 dev-shell *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    # Auto-select a free BRAINSTORM_PORT (avoids "port already allocated" with concurrent containers)
+    _find_free_port() {
+        local port="${1:-19452}"
+        local max=$((port + 100))
+        while ss -tlnH "sport = :${port}" 2>/dev/null | grep -q .; do
+            port=$((port + 1))
+            if (( port > max )); then
+                echo "ERROR: no free port in range ${1:-19452}-${max}" >&2
+                return 1
+            fi
+        done
+        echo "$port"
+    }
+    BRAINSTORM_PORT="${BRAINSTORM_PORT:-$(_find_free_port 19452)}"
     docker build -t <project>-devcontainer .devcontainer/
     tty_flag=$( [[ -t 0 ]] && echo "-it" || echo "-i" )
     run_args=(
@@ -104,5 +116,5 @@ dev-shell *args:
 - **`--firewall` flag** — opt-in firewall mode. Without it, the container runs as the host UID with full internet access (normal development). With it, the container starts as root with `NET_ADMIN`/`NET_RAW`, the entrypoint runs the firewall, then drops to the host UID via `gosu`. Usage: `just dev-shell --firewall claude` for firewalled autonomous mode.
 - **`DEVCONTAINER_WORKSPACE`** — passed to the entrypoint so it knows which directory to `stat` for workspace owner inference. Redundant in normal mode (the entrypoint doesn't need it when not root), but consistent with devcontainer.json's `containerEnv` and useful if the recipe is adapted for root-based modes.
 - **Docker socket mount** — conditional on socket existence (`-S /var/run/docker.sock`). Uses `--group-add` to add the host Docker GID as a supplementary group. Works with both `--user` (normal mode) and root+gosu (firewall mode). Only added when Docker support is enabled.
-- **Visual companion port** — publishes `BRAINSTORM_PORT` (default 19452, overridable via host env var) so the superpowers brainstorming companion is reachable from the host browser. Also sets `BRAINSTORM_HOST=0.0.0.0` (bind to all interfaces) and `BRAINSTORM_URL_HOST=localhost` (correct hostname in printed URL). Only added when superpowers is detected in Phase 1.
+- **Visual companion port** — auto-selects a free port starting from 19452 (walks up with `ss` until one is available). Overridable via `BRAINSTORM_PORT` env var. Also sets `BRAINSTORM_HOST=0.0.0.0` (bind to all interfaces) and `BRAINSTORM_URL_HOST=localhost` (correct hostname in printed URL). Only added when superpowers is detected in Phase 1.
 - **Voice mode audio** — conditional PulseAudio socket mount for Claude Code's `/voice` command. Checks socket existence at runtime (`-S`), then checks for cookie file at both XDG (`~/.config/pulse/cookie`) and legacy (`~/.pulse-cookie`) locations. All mounts are read-only. Only added when voice mode is enabled in Phase 1.
