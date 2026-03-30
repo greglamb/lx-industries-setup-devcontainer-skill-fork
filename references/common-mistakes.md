@@ -49,6 +49,9 @@
 | Hardcoding `BRAINSTORM_PORT` without env override | Use `${localEnv:BRAINSTORM_PORT:19452}` in devcontainer.json and `env("BRAINSTORM_PORT", "19452")` in task runner |
 | Not setting `BRAINSTORM_HOST=0.0.0.0` for visual companion | The companion binds to `127.0.0.1` by default — unreachable from outside the container |
 | Setting `BRAINSTORM_HOST=0.0.0.0` without `BRAINSTORM_URL_HOST=localhost` | The printed URL shows `0.0.0.0` which confuses users — set `BRAINSTORM_URL_HOST=localhost` |
+| Mounting `~/.kube` read-only | kubectl writes to `~/.kube/cache` and auth plugins (gke-gcloud-auth-plugin, kubelogin) refresh tokens in the config — mount writable |
+| Forwarding raw `KUBECONFIG` host path to container | Host path (e.g., `/home/user/.kube/config`) doesn't exist at that path in the container — set `KUBECONFIG` to the container-mapped path (`/tmp/home/.kube/config`) |
+| Missing `~/.kube` mount when Kubernetes tools are detected | kubectl/helm/helmfile can't reach clusters without the kubeconfig — always mount `~/.kube` when Kubernetes tooling is present |
 | Forgetting `enable-shm = false` in `/etc/pulse/client.conf` | PulseAudio shared memory does not work across container boundaries — socket passthrough requires `enable-shm = false` |
 | Mounting PipeWire native socket (`pipewire-0`) instead of PulseAudio compat socket (`pulse/native`) | SoX speaks PulseAudio, not PipeWire — use the PulseAudio compat socket (created by `pipewire-pulse` on PipeWire hosts) |
 | Mounting PulseAudio cookie unconditionally | Check for cookie at both `~/.config/pulse/cookie` (XDG) and `~/.pulse-cookie` (legacy) — omit mount if neither exists (anonymous auth) |

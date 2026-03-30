@@ -60,7 +60,17 @@ For each detected tool, determine the install scope:
 
 See [references/dev-tools.md](references/dev-tools.md) for detection signals, install scope rules, and Dockerfile patterns per ecosystem.
 
-**5. Check for Docker/Compose usage:**
+**5. Check for Kubernetes tooling:**
+
+Look for signals that the project uses Kubernetes, Helm, or Helmfile:
+- Manifests: `Chart.yaml`, `helmfile.yaml`, `helmfile.yml`, `kustomization.yaml`, `values.yaml`
+- Config: `kubeconfig`, `.helmignore`, `Chart.lock`, `requirements.yaml`
+- CI commands: `kubectl apply`, `helm install`, `helm upgrade`, `helm lint`, `helmfile sync`, `helmfile diff`, `kustomize build`
+- Task runner scripts referencing `kubectl`, `helm`, or `helmfile`
+
+If signals found, install kubectl/helm/helmfile in the Dockerfile (see [references/dev-tools.md](references/dev-tools.md) for patterns) and forward `KUBECONFIG` + mount `~/.kube` into the container (see [references/devcontainer-json.md](references/devcontainer-json.md) and [references/task-runner.md](references/task-runner.md)).
+
+**6. Check for Docker/Compose usage:**
 
 Look for signals that the project needs Docker access inside the devcontainer:
 - Compose files: `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`
@@ -72,7 +82,7 @@ See [references/docker-support.md](references/docker-support.md) for the full de
 
 If signals found, recommend enabling Docker CLI + Compose support. If none found, still offer the option.
 
-**6. Detect DinD runners (GitLab only):**
+**7. Detect DinD runners (GitLab only):**
 
 If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runners available to the project:
 
@@ -84,19 +94,19 @@ If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runn
 
 If `glab` is not available or not authenticated, or no DinD runner is found: warn the user and ask them to provide the DinD runner tag manually.
 
-**6. Check for superpowers plugin:**
+**8. Check for superpowers plugin:**
 
 If `~/.claude/settings.json` is readable on the host, check whether `enabledPlugins` contains `"superpowers@claude-plugins-official": true`.
 
 If found, note it for Phase 3 — when the user chooses Path A (host settings), the brainstorming visual companion needs port forwarding to be reachable from the host browser.
 
-**7. Check for voice mode support (Path A only):**
+**9. Check for voice mode support (Path A only):**
 
 Ask: "Do you want voice mode support (audio passthrough for `/voice`)?"
 
 If yes, detect the host's PulseAudio socket (`$XDG_RUNTIME_DIR/pulse/native`) and cookie (`$HOME/.config/pulse/cookie` or `$HOME/.pulse-cookie`). If not found, prompt with common paths. Validate the socket exists. See [references/voice-mode.md](references/voice-mode.md) for full detection logic.
 
-**8. Present findings to the user** before proceeding.
+**10. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
 
@@ -115,6 +125,8 @@ If Docker support was enabled in Phase 1, also add the Docker CLI layer and `/et
 
 If ecosystem dev tools were detected in Phase 1, add the appropriate install layers. See [references/dev-tools.md](references/dev-tools.md) for Dockerfile patterns, Renovate annotations, and layer placement per ecosystem. Only install tools that need global scope — skip tools managed by the project's dependency file.
 
+If Kubernetes tooling was detected in Phase 1, add kubectl/helm/helmfile install layers. See [references/dev-tools.md](references/dev-tools.md) for Dockerfile patterns and Renovate annotations.
+
 If voice mode was enabled in Phase 1, add the audio packages layer (sox, pulseaudio-utils, libportaudio2, libasound2-plugins, ffmpeg) and PulseAudio client config (`enable-shm = false`). See [references/voice-mode.md](references/voice-mode.md) for the Dockerfile layer.
 
 ### Phase 3: devcontainer.json
@@ -129,6 +141,8 @@ Key decisions:
 - Both paths: `"init": true`, host-native `workspaceFolder`, read-only `.gitconfig`, SSH agent socket, `COLORTERM` forwarding
 
 If Docker support was enabled in Phase 1, add the Docker socket bind-mount (`/var/run/docker.sock`). The entrypoint handles GID — no `runArgs` needed.
+
+If Kubernetes tooling was detected in Phase 1, add `~/.kube` bind mount and `KUBECONFIG` env var to `remoteEnv`. See [references/devcontainer-json.md](references/devcontainer-json.md) for the mount and env var configuration.
 
 If superpowers was detected in Phase 1 (Path A only), propose visual companion port forwarding:
 
@@ -215,6 +229,8 @@ If Docker support was enabled in Phase 1, add a conditional Docker socket mount 
 
 If superpowers was detected in Phase 1, add `BRAINSTORM_PORT` variable with env override (default: 19452) and publish the port with `-p` and `-e` flags for `BRAINSTORM_PORT`, `BRAINSTORM_HOST`, and `BRAINSTORM_URL_HOST`. See [references/task-runner.md](references/task-runner.md) for the recipe additions.
 
+If Kubernetes tooling was detected in Phase 1, add a conditional `~/.kube` mount and `KUBECONFIG` env var to the task runner recipe. See [references/task-runner.md](references/task-runner.md) for the recipe additions.
+
 If voice mode was enabled in Phase 1, add a conditional PulseAudio socket mount with cookie detection to the task runner recipe. See [references/voice-mode.md](references/voice-mode.md) for the recipe additions.
 
 ### Phase 7: Testing
@@ -237,6 +253,13 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] `claude plugin list` shows all plugins enabled (Path A only)
 - [ ] Any project-specific build commands succeed
 - [ ] Ecosystem dev tools work, if installed (e.g., `cargo clippy --version`, `ruff --version`, `golangci-lint --version`)
+
+**Kubernetes verification (Kubernetes tooling only):**
+- [ ] `kubectl version --client` — kubectl is installed and on PATH
+- [ ] `helm version` — Helm is installed (if detected)
+- [ ] `helmfile --version` — Helmfile is installed (if detected)
+- [ ] `echo $KUBECONFIG` — env var is set and points to a readable file
+- [ ] `kubectl config view` — kubeconfig is loaded and contexts are visible
 
 **Docker verification (Docker support only):**
 - [ ] `docker version` — CLI installed, daemon reachable via socket

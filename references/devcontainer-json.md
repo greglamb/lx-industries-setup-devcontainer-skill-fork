@@ -38,6 +38,30 @@ Shares the host's `~/.claude` and `~/.claude.json` with the container. Plugins, 
 
 The `~/.claude` directory requires **two bind mounts** — one at `$HOME/.claude` (container HOME) and one at the host-native path (e.g. `/home/user/.claude`). This is a workaround for [claude-code#10379](https://github.com/anthropics/claude-code/issues/10379): plugin manifests store absolute host paths for marketplace and install locations. Without the second mount, plugins fail with "not found in marketplace". A symlink won't work because the host-native workspace mount creates the host home directory owned by root, blocking symlink creation by non-root users. Both bind mounts of the same host directory share the underlying filesystem — writes at either path are immediately visible at the other.
 
+### Kubernetes config passthrough (optional, both paths)
+
+When Kubernetes tooling is detected in Phase 1, mount the host's `~/.kube` directory so kubectl/helm/helmfile can access cluster credentials and contexts. Set `KUBECONFIG` to the container-mapped path.
+
+Add to the generated `devcontainer.json` mounts:
+
+```json
+"source=${localEnv:HOME}/.kube,target=/tmp/home/.kube,type=bind"
+```
+
+Add to `remoteEnv`:
+
+```json
+"KUBECONFIG": "/tmp/home/.kube/config"
+```
+
+Key points:
+- **Writable mount**: kubectl writes to `~/.kube/cache` and some auth plugins (e.g., `gke-gcloud-auth-plugin`, `kubelogin`) update token fields in the config file. A read-only mount breaks these flows.
+- **`KUBECONFIG` env var**: Set explicitly to the container path. When unset, kubectl defaults to `$HOME/.kube/config` which resolves correctly since `HOME=/tmp/home`, but setting it explicitly avoids surprises if tools use different default logic.
+- **No dual mount needed**: Unlike `~/.claude`, kubeconfig paths are not stored as absolute host paths in any tool metadata. A single mount at `$HOME/.kube` is sufficient.
+- **Non-default KUBECONFIG**: If the host has `KUBECONFIG` set to a path outside `~/.kube`, the devcontainer.json approach doesn't handle it — the task runner recipe is more flexible for this case. For devcontainer.json, document that users should adjust the mount source if they use a custom `KUBECONFIG` path. Colon-separated multi-file `KUBECONFIG` (e.g., `~/.kube/config:~/.kube/staging`) is not supported — each file would need its own mount and the paths remapped. This is rare enough to handle as a manual adjustment.
+- **Helm and helmfile cache**: Helm uses `$XDG_CACHE_HOME/helm` (defaults to `~/.cache/helm`). This is inside the container HOME, so it works automatically — no extra mount needed.
+- **Both paths**: Include this mount in both Path A and Path B configurations. Even isolated containers need cluster access for development.
+
 ### Superpowers visual companion (optional, Path A only)
 
 When the superpowers plugin is detected in `~/.claude/settings.json` (`enabledPlugins` contains `superpowers@claude-plugins-official`), propose a fixed port for the brainstorming visual companion. The companion starts an HTTP+WebSocket server inside the container that must be reachable from the host browser.

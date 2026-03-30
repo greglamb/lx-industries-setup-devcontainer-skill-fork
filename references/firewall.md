@@ -41,6 +41,14 @@ Populate package registries from the package managers detected in Phase 1. Commo
 | rubygems | `rubygems.org` |
 | docker (Docker Hub) | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` |
 
+When Kubernetes tooling is detected, add the Kubernetes API server domain(s) from the kubeconfig. Parse `~/.kube/config` for `server:` entries and extract the hostnames. Common patterns:
+- GKE: `*.gke.goog` or direct IP addresses
+- EKS: `*.eks.amazonaws.com`
+- AKS: `*.azmk8s.io`
+- Self-hosted: project-specific hostnames
+
+Also add Helm chart repository domains if the project uses custom Helm repos (check `repositories:` in `helmfile.yaml` or output of `helm repo list`). Do **not** hardcode cloud-specific domains — always extract from the actual kubeconfig and project configuration.
+
 When Docker support is enabled, also scan `FROM` directives in project Dockerfiles and `image:` fields in compose files to detect additional registries (GHCR, GitLab, GCR, GAR, ECR). See [docker-support.md](docker-support.md) for the full registry detection table.
 
 Always include `registry.npmjs.org` even if the project doesn't use Node.js — Claude Code runs `npm install` for MCP servers at runtime.

@@ -19,6 +19,7 @@ Makefile, justfile, Taskfile.yml, etc.):
 | Python | `ruff`, `mypy`, `black`, `flake8`, `pylint`, `isort`, `pytest` |
 | Go | `golangci-lint`, `staticcheck`, `gofumpt` |
 | JS/TS | `eslint`, `prettier`, `biome`, `vitest`, `jest` |
+| Kubernetes | `kubectl apply`, `kubectl run`, `helm install`, `helm upgrade`, `helm lint`, `helm template`, `helmfile sync`, `helmfile diff`, `helmfile apply`, `kustomize build` |
 
 ### Project manifests
 
@@ -30,6 +31,7 @@ Check for tool-specific config files and dev dependency declarations:
 | Python | `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`, `[tool.black]`, `[dependency-groups]`, `[project.optional-dependencies]`), `requirements-dev.txt`, `.flake8`, `setup.cfg` `[flake8]` |
 | Go | `.golangci.yml`, `.golangci.yaml`, `.golangci.toml` |
 | JS/TS | `package.json` `devDependencies`, `.eslintrc.*`, `.prettierrc.*`, `biome.json` |
+| Kubernetes | `Chart.yaml`, `helmfile.yaml`, `helmfile.yml`, `kustomization.yaml`, `values.yaml`, `Chart.lock`, `requirements.yaml`, `.helmignore` |
 
 For ecosystems not listed here, apply the same pattern: check CI scripts for tool
 invocations, then check ecosystem-standard config files and dev dependency sections.
@@ -121,6 +123,51 @@ RUN npm install -g eslint@${ESLINT_VERSION}
 ```
 
 Use `npm` datasource for Renovate.
+
+### Kubernetes: kubectl, helm, helmfile
+
+Kubernetes tools are always installed globally — they are standalone infrastructure CLIs, not
+project-managed dependencies. Install only the tools the project actually uses (detected from
+CI commands or project manifests).
+
+```dockerfile
+# ── Kubernetes tools ─────────────────────────────────────────────────
+# renovate: datasource=github-tags depName=kubernetes/kubernetes extractVersion=^v(?<version>.+)$
+ARG KUBECTL_VERSION="1.32.3"
+
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" -o /usr/local/bin/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
+    && kubectl version --client
+```
+
+```dockerfile
+# renovate: datasource=github-releases depName=helm/helm
+ARG HELM_VERSION="3.17.3"
+
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${arch}.tar.gz" | tar xz -C /tmp \
+    && mv /tmp/linux-${arch}/helm /usr/local/bin/helm \
+    && rm -rf /tmp/linux-${arch} \
+    && helm version
+```
+
+```dockerfile
+# renovate: datasource=github-releases depName=helmfile/helmfile
+ARG HELMFILE_VERSION="0.171.0"
+
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_${arch}.tar.gz" | tar xz -C /tmp \
+    && mv /tmp/helmfile /usr/local/bin/helmfile \
+    && helmfile version
+```
+
+Key points:
+- **kubectl** uses `dl.k8s.io` download URLs, not GitHub release assets. Renovate tracks versions via `github-tags` on `kubernetes/kubernetes` with `extractVersion` to strip the `v` prefix — the `kubernetes/kubectl` mirror repo doesn't have usable release tags
+- **helm** uses the `get.helm.sh` CDN — extracts from a tar archive with a `linux-<arch>/helm` path
+- **helmfile** moved from `roboll/helmfile` to `helmfile/helmfile` — use the current org
+- Architecture mapping: `dpkg --print-architecture` produces `amd64`/`arm64` which matches all three tools' naming
+- Only install what the project uses — if only `helm` is detected, skip `kubectl` and `helmfile`
 
 ### Unlisted ecosystems
 

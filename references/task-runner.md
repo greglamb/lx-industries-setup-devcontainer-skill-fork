@@ -78,6 +78,16 @@ dev-shell *args:
         -v "$HOME/.claude:$HOME/.claude"
     )
     [[ -f "$HOME/.claude.json" ]] && run_args+=(-v "$HOME/.claude.json:/tmp/home/.claude.json")
+    # Kubernetes config (conditional — forward KUBECONFIG or fall back to ~/.kube)
+    if [[ -n "${KUBECONFIG:-}" && -f "${KUBECONFIG}" ]]; then
+        run_args+=(-v "${KUBECONFIG}:/tmp/kube-config")
+        run_args+=(-e "KUBECONFIG=/tmp/kube-config")
+        # Still mount ~/.kube for cache and credential helpers
+        [[ -d "$HOME/.kube" ]] && run_args+=(-v "$HOME/.kube:/tmp/home/.kube")
+    elif [[ -d "$HOME/.kube" ]]; then
+        run_args+=(-v "$HOME/.kube:/tmp/home/.kube")
+        run_args+=(-e "KUBECONFIG=/tmp/home/.kube/config")
+    fi
     # Docker socket (conditional — may not exist)
     if [[ -S /var/run/docker.sock ]]; then
         run_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
@@ -117,4 +127,5 @@ dev-shell *args:
 - **`DEVCONTAINER_WORKSPACE`** — passed to the entrypoint so it knows which directory to `stat` for workspace owner inference. Redundant in normal mode (the entrypoint doesn't need it when not root), but consistent with devcontainer.json's `containerEnv` and useful if the recipe is adapted for root-based modes.
 - **Docker socket mount** — conditional on socket existence (`-S /var/run/docker.sock`). Uses `--group-add` to add the host Docker GID as a supplementary group. Works with both `--user` (normal mode) and root+gosu (firewall mode). Only added when Docker support is enabled.
 - **Visual companion port** — auto-selects a free port starting from 19452 (walks up with `ss` until one is available). Overridable via `BRAINSTORM_PORT` env var. Also sets `BRAINSTORM_HOST=0.0.0.0` (bind to all interfaces) and `BRAINSTORM_URL_HOST=localhost` (correct hostname in printed URL). Only added when superpowers is detected in Phase 1.
+- **Kubernetes config** — two-path conditional: if `KUBECONFIG` is set and points to a file, mount that file at `/tmp/kube-config` and set `KUBECONFIG` to the container path (also mount `~/.kube` for cache/credential helpers). If `KUBECONFIG` is unset, mount `~/.kube` and default to `/tmp/home/.kube/config`. Mounts are writable because kubectl writes to `~/.kube/cache` and auth plugins may refresh tokens. Only added when Kubernetes tooling is detected in Phase 1.
 - **Voice mode audio** — conditional PulseAudio socket mount for Claude Code's `/voice` command. Checks socket existence at runtime (`-S`), then checks for cookie file at both XDG (`~/.config/pulse/cookie`) and legacy (`~/.pulse-cookie`) locations. All mounts are read-only. Only added when voice mode is enabled in Phase 1.
