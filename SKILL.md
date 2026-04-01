@@ -1,6 +1,6 @@
 ---
 name: setup-devcontainer
-description: Generates a hardened .devcontainer/ setup for Claude Code autonomous mode and IDE use. Analyzes project toolchain, reuses CI images, pins dependencies with Renovate annotations, handles arbitrary UIDs, git worktrees, SSH agent forwarding, and optional network firewall. Triggers on "devcontainer", "dev container", "containerize development", "run Claude in a container".
+description: Generates a hardened .devcontainer/ setup for Claude Code and/or opencode autonomous mode and IDE use. Analyzes project toolchain, reuses CI images, pins dependencies with Renovate annotations, handles arbitrary UIDs, git worktrees, SSH agent forwarding, and optional network firewall. Triggers on "devcontainer", "dev container", "containerize development", "run Claude in a container", "opencode devcontainer", "opencode container".
 license: MIT
 compatibility: Requires docker and bash. Generates configs for the Dev Container spec (VS Code, JetBrains, DevPod, devcontainer CLI).
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 # Set Up a Dev Container
 
-Create a `.devcontainer/` setup following the [Dev Container spec](https://containers.dev/) that works for Claude Code autonomous mode (`--dangerously-skip-permissions`) and as a generic IDE dev container (VS Code, JetBrains).
+Create a `.devcontainer/` setup following the [Dev Container spec](https://containers.dev/) that works for Claude Code and/or [opencode](https://opencode.ai) autonomous mode and as a generic IDE dev container (VS Code, JetBrains).
 
 ## Process
 
@@ -39,15 +39,25 @@ Look in CI configuration, container registries, and Dockerfiles:
 
 If the project already builds CI images with the right toolchain, **reuse them as base images** via multi-stage build. This avoids duplicating toolchain setup and keeps the dev container in sync with CI.
 
-**3. Identify additional tools needed beyond CI:**
+**3. Choose AI coding tool(s):**
 
-The dev container likely needs tools CI images lack:
-- Claude Code (self-contained native binary — no Node.js dependency)
+Ask: "Which AI coding tool(s) should the container include?"
+- A) Claude Code only
+- B) [opencode](https://opencode.ai) only
+- C) Both (default)
+
+The choice propagates through all subsequent phases. Claude Code-specific logic is conditional on Claude Code being selected. opencode-specific logic is conditional on opencode being selected. When both are selected, both apply.
+
+**4. Identify additional tools needed beyond CI:**
+
+The dev container likely needs tools CI images lack (depending on tool selection in step 3):
+- Claude Code (self-contained native binary — no Node.js dependency) — if Claude Code selected
+- opencode (self-contained binary via install script) — if opencode selected
 - Git forge CLIs — both `glab` and `gh` are always installed regardless of project forge; host config directories (`~/.config/glab-cli`, `~/.config/gh`) determine which are pre-authenticated
 - SSH client for git operations
 - Any interactive development tools
 
-**4. Detect ecosystem dev tools:**
+**5. Detect ecosystem dev tools:**
 
 Identify dev/lint/format/test tools the project depends on by scanning two sources:
 
@@ -60,7 +70,7 @@ For each detected tool, determine the install scope:
 
 See [references/dev-tools.md](references/dev-tools.md) for detection signals, install scope rules, and Dockerfile patterns per ecosystem.
 
-**5. Check for Kubernetes tooling:**
+**6. Check for Kubernetes tooling:**
 
 Look for signals that the project uses Kubernetes, Helm, or Helmfile:
 - Manifests: `Chart.yaml`, `helmfile.yaml`, `helmfile.yml`, `kustomization.yaml`, `values.yaml`
@@ -70,7 +80,7 @@ Look for signals that the project uses Kubernetes, Helm, or Helmfile:
 
 If signals found, install kubectl/helm/helmfile in the Dockerfile (see [references/dev-tools.md](references/dev-tools.md) for patterns) and forward `KUBECONFIG` + mount `~/.kube` into the container (see [references/devcontainer-json.md](references/devcontainer-json.md) and [references/task-runner.md](references/task-runner.md)).
 
-**6. Check for Docker/Compose usage:**
+**7. Check for Docker/Compose usage:**
 
 Look for signals that the project needs Docker access inside the devcontainer:
 - Compose files: `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`
@@ -82,7 +92,7 @@ See [references/docker-support.md](references/docker-support.md) for the full de
 
 If signals found, recommend enabling Docker CLI + Compose support. If none found, still offer the option.
 
-**7. Detect DinD runners (GitLab only):**
+**8. Detect DinD runners (GitLab only):**
 
 If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runners available to the project:
 
@@ -94,19 +104,19 @@ If the forge is GitLab and `glab` is authenticated, detect Docker-in-Docker runn
 
 If `glab` is not available or not authenticated, or no DinD runner is found: warn the user and ask them to provide the DinD runner tag manually.
 
-**8. Check for superpowers plugin:**
+**9. Check for superpowers plugin:**
 
 If `~/.claude/settings.json` is readable on the host, check whether `enabledPlugins` contains `"superpowers@claude-plugins-official": true`.
 
 If found, note it for Phase 3 — when the user chooses Path A (host settings), the brainstorming visual companion needs port forwarding to be reachable from the host browser.
 
-**9. Check for voice mode support (Path A only):**
+**10. Check for voice mode support (Path A only):**
 
 Ask: "Do you want voice mode support (audio passthrough for `/voice`)?"
 
 If yes, detect the host's PulseAudio socket (`$XDG_RUNTIME_DIR/pulse/native`) and cookie (`$HOME/.config/pulse/cookie` or `$HOME/.pulse-cookie`). If not found, prompt with common paths. Validate the socket exists. See [references/voice-mode.md](references/voice-mode.md) for full detection logic.
 
-**10. Present findings to the user** before proceeding.
+**11. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
 
@@ -121,6 +131,10 @@ Key principles:
 - Never set `WORKDIR` (worktree compatibility)
 - `chmod 1777` not `chmod 777`
 
+If opencode was selected in Phase 1, add the opencode install layer. See [references/dockerfile.md](references/dockerfile.md) for the install pattern.
+
+If only opencode was selected (not Claude Code), skip NPM supply-chain hardening environment variables — opencode uses bun, not npm, for plugin management.
+
 If Docker support was enabled in Phase 1, also add the Docker CLI layer and `/etc/group` writable. See [references/docker-support.md](references/docker-support.md) for the Dockerfile additions and entrypoint GID handling.
 
 If ecosystem dev tools were detected in Phase 1, add the appropriate install layers. See [references/dev-tools.md](references/dev-tools.md) for Dockerfile patterns, Renovate annotations, and layer placement per ecosystem. Only install tools that need global scope — skip tools managed by the project's dependency file.
@@ -131,13 +145,13 @@ If voice mode was enabled in Phase 1, add the audio packages layer (sox, pulseau
 
 ### Phase 3: devcontainer.json
 
-Generate `.devcontainer/devcontainer.json`. Ask the user whether to share host Claude Code settings or start isolated.
+Generate `.devcontainer/devcontainer.json`. Ask the user whether to share host settings for the selected AI tool(s) or start isolated.
 
 See [references/devcontainer-json.md](references/devcontainer-json.md) for both paths (host settings vs isolated), mount configurations, and the rationale for each key decision (`init`, workspace mount, SSH agent, COLORTERM, dual `.claude` mount workaround).
 
 Key decisions:
-- **Path A** (host settings): dual `~/.claude` bind mount + `~/.claude.json` mount
-- **Path B** (isolated): named Docker volume, no host config
+- **Path A** (host settings): bind mounts for selected tool(s) — Claude Code: dual `~/.claude` bind mount + `~/.claude.json` mount; opencode: `~/.config/opencode`, `~/.local/share/opencode`, `~/.cache/opencode` bind mounts
+- **Path B** (isolated): named Docker volumes for selected tool(s), no host config
 - Both paths: `"init": true`, host-native `workspaceFolder`, read-only `.gitconfig`, SSH agent socket, `COLORTERM` forwarding
 
 If Docker support was enabled in Phase 1, add the Docker socket bind-mount (`/var/run/docker.sock`). The entrypoint handles GID — no `runArgs` needed.
@@ -151,6 +165,8 @@ If superpowers was detected in Phase 1 (Path A only), propose visual companion p
 Add `forwardPorts`, `portsAttributes` (label: "Brainstorm Companion", onAutoForward: "silent"), and `remoteEnv` entries for `BRAINSTORM_PORT` (with `${localEnv:BRAINSTORM_PORT:19452}` fallback), `BRAINSTORM_HOST` (`0.0.0.0`), and `BRAINSTORM_URL_HOST` (`localhost`). See [references/devcontainer-json.md](references/devcontainer-json.md) for the full snippet.
 
 If voice mode was enabled in Phase 1 (Path A only), add the PulseAudio socket and cookie bind mounts (readonly) and `PULSE_SERVER`/`PULSE_COOKIE` env vars to `remoteEnv`. See [references/voice-mode.md](references/voice-mode.md) for the mount and env var configuration.
+
+If opencode was selected in Phase 1, add the opencode config directory mounts (Path A) or named volumes (Path B). See [references/devcontainer-json.md](references/devcontainer-json.md) for the mount configurations. No dual mount workaround needed — opencode uses XDG-standard paths relative to `$HOME`.
 
 ### Phase 4: CI Validation
 
@@ -207,7 +223,9 @@ Key principles:
 - Default DROP policy, allow only DNS/SSH/HTTP/HTTPS to listed domains
 - Self-test (verify blocked domain is unreachable)
 - `gosu` for privilege drop after firewall setup
-- Always include `registry.npmjs.org` and `github.com` regardless of project
+- Include `registry.npmjs.org` if Claude Code is selected or the project uses npm (Claude Code uses npm for MCP servers; opencode uses bun)
+- Include `github.com` if Claude Code is selected or the project forge is GitHub (Claude Code distribution uses GitHub; opencode installs from `opencode.ai`)
+- If opencode is selected, ask which LLM provider(s) will be used and add their API domains. See [references/firewall.md](references/firewall.md) for the provider domain table.
 
 If Docker support was enabled in Phase 1, add Docker Hub registry domains (`registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`) to the allowlist. Scan project Dockerfiles and compose files for additional registries. See [references/docker-support.md](references/docker-support.md).
 
@@ -233,6 +251,8 @@ If Kubernetes tooling was detected in Phase 1, add a conditional `~/.kube` mount
 
 If voice mode was enabled in Phase 1, add a conditional PulseAudio socket mount with cookie detection to the task runner recipe. See [references/voice-mode.md](references/voice-mode.md) for the recipe additions.
 
+If opencode was selected in Phase 1, add conditional opencode config directory mounts to the recipe. See [references/task-runner.md](references/task-runner.md) for the mount patterns.
+
 ### Phase 7: Testing
 
 Run verifications inside the built container using the task runner recipe from Phase 6 (e.g., `just dev-shell <command>`). If no task runner was configured, use `docker run` directly.
@@ -244,15 +264,23 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] PID 1 is `tini`/`docker-init` (check `cat /proc/1/cmdline`)
 - [ ] Git identity resolves from read-only `.gitconfig` (`git config user.name`)
 - [ ] `.gitconfig` is not writable (`git config --global user.name test` should fail)
-- [ ] NPM hardening envs are set (`NPM_CONFIG_IGNORE_SCRIPTS=true`, `NPM_CONFIG_MINIMUM_RELEASE_AGE=1440`)
+- [ ] NPM hardening envs are set (`NPM_CONFIG_IGNORE_SCRIPTS=true`, `NPM_CONFIG_MINIMUM_RELEASE_AGE=1440`) — Claude Code only
 - [ ] SSH agent is accessible (`ssh-add -l` lists keys)
 - [ ] SSH-based git operations work (`git ls-remote` or `ssh -T git@<forge>`)
 - [ ] Both forge CLIs are available (`glab --version`, `gh --version`)
 - [ ] Forge CLIs with mounted config authenticate (`glab auth status`, `gh auth status` for whichever has host config)
-- [ ] `claude --version` works with mounted config
-- [ ] `claude plugin list` shows all plugins enabled (Path A only)
+- [ ] `claude --version` works with mounted config — Claude Code only
+- [ ] `claude plugin list` shows all plugins enabled (Path A only) — Claude Code only
 - [ ] Any project-specific build commands succeed
 - [ ] Ecosystem dev tools work, if installed (e.g., `cargo clippy --version`, `ruff --version`, `golangci-lint --version`)
+
+**opencode verification (opencode only):**
+- [ ] `opencode --version` — opencode is installed and on PATH
+- [ ] `opencode --help` — runs without errors
+
+**opencode config verification (Path A with opencode only):**
+- [ ] Config is accessible: `ls $HOME/.config/opencode/opencode.json` (if it exists on host)
+- [ ] Auth is accessible: `ls $HOME/.local/share/opencode/auth.json` (if it exists on host)
 
 **Kubernetes verification (Kubernetes tooling only):**
 - [ ] `kubectl version --client` — kubectl is installed and on PATH
@@ -283,7 +311,8 @@ Run verifications inside the built container using the task runner recipe from P
 
 Run with the firewall flag (e.g., `just dev-shell --firewall <command>`):
 - [ ] `curl https://example.com` is rejected (firewall blocks unlisted domains)
-- [ ] `curl https://api.anthropic.com` succeeds (Claude API is allowed)
+- [ ] `curl https://api.anthropic.com` succeeds (Claude API is allowed) — Claude Code only
+- [ ] Selected opencode provider API domain is reachable — opencode only
 - [ ] `ssh -T git@<forge>` succeeds (forge SSH is allowed)
 - [ ] `firewall-list` shows resolved IPs
 - [ ] `whoami` still resolves (gosu dropped to correct UID)

@@ -39,6 +39,8 @@ ENV NPM_CONFIG_MINIMUM_RELEASE_AGE=1440
 
 Place these in the environment section alongside `HOME`, `PATH`, etc.
 
+**Conditional:** Only include NPM hardening when Claude Code is selected. Claude Code runs `npm install` for MCP servers at runtime. opencode uses bun for plugin management and does not need these variables.
+
 ## Layer ordering (most stable first)
 
 1. Base image and multi-stage COPY operations
@@ -60,7 +62,7 @@ Key points:
 
 ## Voice mode audio (optional)
 
-When the user opts in to voice mode during Phase 1, add the audio packages layer. Place after system packages, before Claude Code install:
+When the user opts in to voice mode during Phase 1, add the audio packages layer. Place after system packages, before the AI tool install layers (Claude Code and/or opencode):
 
 ```dockerfile
 # Voice mode audio support (optional)
@@ -108,6 +110,28 @@ Key details:
 - No Renovate annotation needed — Claude Code auto-updates at runtime
 - After the install, `chmod -R 1777 /tmp/home` makes everything readable by any UID
 
+## opencode (native binary, auto-updates)
+
+opencode installs via a shell script, similar to Claude Code. `HOME` must be set before the install so the installer places the binary at the correct location:
+
+```dockerfile
+# -- opencode (AI coding assistant) --------------------------------------------
+# HOME is set above so the installer places the binary at the correct location
+
+RUN curl -fsSL https://opencode.ai/install | bash \
+    && opencode --version
+```
+
+Key details:
+- `HOME` must be set before running the installer — it uses `$HOME` to decide install location
+- Must pipe to `bash` (not `sh`) — verify install script compatibility during implementation
+- No Renovate annotation needed — opencode auto-updates at runtime (same as Claude Code)
+- After the install, `chmod -R 1777 /tmp/home` makes everything readable by any UID (same as Claude Code)
+- Place after Claude Code install (if both selected), before forge CLIs
+- Only include when opencode is selected in Phase 1
+
+**Layer ordering:** When both tools are selected, the opencode install goes immediately after the Claude Code install, before forge CLIs. When only opencode is selected, it takes the same position Claude Code would have occupied.
+
 ## Forge CLI config directory cleanup
 
 Both `glab` (GitLab) and `gh` (GitHub) CLIs are always installed regardless of project forge. Each CLI creates config files when run during the build (e.g., `--version`). These files are owned by root with restrictive permissions (`0600`), causing "permission denied" errors for non-root users at runtime. Clean up after the version check and recreate the directory as world-writable:
@@ -153,7 +177,7 @@ RUN mkdir -p /etc/ssh \
     && ssh-keyscan -t ecdsa,rsa,ed25519 <forge>.com github.com >> /etc/ssh/ssh_known_hosts 2>/dev/null
 ```
 
-Always include `github.com` alongside the project forge — Claude Code connects to GitHub for distribution and updates.
+Include `github.com` alongside the project forge when Claude Code is selected (Claude Code connects to GitHub for distribution and updates) or when the project forge is GitHub. When only opencode is selected and the forge is not GitHub, `github.com` can be omitted from known hosts.
 
 ## Non-root user (remoteUser + updateRemoteUserUID)
 

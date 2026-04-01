@@ -26,8 +26,8 @@
 | Forge CLI config created by build as root | `glab --version` / `gh --version` during build creates config owned by root:0600 — `rm -rf` and `mkdir -m 1777` after the version check |
 | Missing `COLORTERM` in container | Docker doesn't forward `COLORTERM` — add to `remoteEnv` and `-e` flags so CLI tools use truecolor |
 | Hardcoded IPs in firewall allowlist | Use domain names in `firewall-allowlist.txt` and resolve at startup — IPs change, domains don't |
-| Missing `registry.npmjs.org` in firewall allowlist | Claude Code runs `npm install` for MCP servers even in non-Node.js projects — always allow npmjs |
-| Missing `github.com` in firewall allowlist | Claude Code distribution uses GitHub regardless of project forge — always allow it |
+| Missing `registry.npmjs.org` in firewall allowlist | Claude Code runs `npm install` for MCP servers — allow npmjs when Claude Code is selected or the project uses npm |
+| Missing `github.com` in firewall allowlist | Claude Code distribution uses GitHub — allow when Claude Code is selected or the project forge is GitHub |
 | Flushing iptables without saving Docker DNS | Preserve `127.0.0.11` rules before flushing — without them, container DNS resolution breaks |
 | Running firewall as non-root | iptables requires root + `NET_ADMIN` capability — in firewalled mode, start as root and drop privileges via `gosu` after firewall setup |
 | Granting `NET_ADMIN` in normal mode | Only add `--cap-add=NET_ADMIN --cap-add=NET_RAW` in firewalled mode — they are security-sensitive capabilities not needed for normal development |
@@ -56,6 +56,13 @@
 | Mounting PipeWire native socket (`pipewire-0`) instead of PulseAudio compat socket (`pulse/native`) | SoX speaks PulseAudio, not PipeWire — use the PulseAudio compat socket (created by `pipewire-pulse` on PipeWire hosts) |
 | Mounting PulseAudio cookie unconditionally | Check for cookie at both `~/.config/pulse/cookie` (XDG) and `~/.pulse-cookie` (legacy) — omit mount if neither exists (anonymous auth) |
 | Hardcoding `/run/user/1000/` for PulseAudio socket | Use `$XDG_RUNTIME_DIR/pulse/native` for detection; fall back to prompted path with `$(id -u)` hints |
+| Installing opencode via npm when install script is available | Use `curl -fsSL https://opencode.ai/install \| bash` — consistent with the project's install method |
+| Missing opencode config directories in Path A mounts | Mount all three XDG paths: `~/.config/opencode`, `~/.local/share/opencode`, `~/.cache/opencode` |
+| Mounting opencode auth (`~/.local/share/opencode`) read-only | Auth plugins may refresh tokens — mount writable |
+| Dual-mounting opencode config at host-native path | Not needed — opencode uses XDG paths relative to `$HOME`, no absolute host path issue like Claude Code's plugin manifests |
+| Including `registry.npmjs.org` in firewall when only opencode is selected | Only include if the project itself uses npm — opencode uses bun for plugins, not npm |
+| Including `github.com` in firewall when only opencode is selected | Only include if the project forge is GitHub — opencode installs from `opencode.ai`, not GitHub |
+| Hardcoding a single LLM provider domain in firewall for opencode | Ask the user which provider(s) they'll use — opencode supports 75+ providers with different API domains |
 
 ## Red Flags
 
@@ -71,6 +78,8 @@
 - Hardcode the Docker socket GID — it varies per host (999, 998, 133, etc.)
 - Hardcode `BRAINSTORM_PORT` without allowing env override — the user may need a different port
 - Mount `/dev/snd` for container audio — use PulseAudio socket passthrough instead (avoids exclusive device access and host conflicts)
+- Assume opencode needs the same dual-mount workaround as Claude Code — it doesn't (XDG paths are relative to `$HOME`)
+- Include Claude Code-specific firewall entries (npmjs, github.com, api.anthropic.com) when only opencode is selected
 
 **Always:**
 - Analyze the project before writing the Dockerfile
@@ -78,7 +87,7 @@
 - Test with `--user $(id -u):$(id -g)` (arbitrary UID)
 - Mount the project at its host-native path
 - Validate devcontainer.json against the spec schema in CI
-- Include `registry.npmjs.org` and `github.com` in the firewall allowlist regardless of project language/forge
+- Include `registry.npmjs.org` in the firewall allowlist when Claude Code is selected or the project uses npm; include `github.com` when Claude Code is selected or the project forge is GitHub
 - Self-test the firewall (verify a blocked domain is unreachable, verify an allowed domain is reachable)
 - Set `containerUser`, `remoteUser`, and `updateRemoteUserUID` in devcontainer.json
 - Test the container started as root without `--user` to verify the entrypoint drops to the workspace owner UID
@@ -88,3 +97,6 @@
 - Set `BRAINSTORM_HOST=0.0.0.0` and `BRAINSTORM_URL_HOST=localhost` alongside `BRAINSTORM_PORT` when configuring the visual companion
 - Set `enable-shm = false` in `/etc/pulse/client.conf` when mounting PulseAudio socket into a container
 - Use the PulseAudio-compatible socket (`pulse/native`) even on PipeWire hosts — SoX speaks PulseAudio
+- Ask which AI tool(s) to install (Claude Code, opencode, or both) before generating any files
+- Mount all three opencode XDG directories when opencode is selected (config, data, cache)
+- Ask which LLM provider(s) opencode will use when generating a firewall allowlist

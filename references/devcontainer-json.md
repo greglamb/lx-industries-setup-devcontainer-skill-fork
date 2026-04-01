@@ -1,10 +1,10 @@
 # Phase 3: devcontainer.json
 
-**Ask the user:** should the container share the host's Claude Code settings (plugins, skills, preferences), or start fresh?
+**Ask the user:** should the container share the host's settings for the selected AI tool(s) (plugins, skills, preferences), or start fresh?
 
-## Path A: With host Claude Code settings
+## Path A: With host settings
 
-Shares the host's `~/.claude` and `~/.claude.json` with the container. Plugins, skills, permissions, and preferences carry over. Best for personal development.
+Shares the host's AI tool configuration with the container. Plugins, skills, permissions, and preferences carry over. Best for personal development.
 
 ```json
 {
@@ -37,6 +37,24 @@ Shares the host's `~/.claude` and `~/.claude.json` with the container. Plugins, 
 ```
 
 The `~/.claude` directory requires **two bind mounts** — one at `$HOME/.claude` (container HOME) and one at the host-native path (e.g. `/home/user/.claude`). This is a workaround for [claude-code#10379](https://github.com/anthropics/claude-code/issues/10379): plugin manifests store absolute host paths for marketplace and install locations. Without the second mount, plugins fail with "not found in marketplace". A symlink won't work because the host-native workspace mount creates the host home directory owned by root, blocking symlink creation by non-root users. Both bind mounts of the same host directory share the underlying filesystem — writes at either path are immediately visible at the other.
+
+### opencode config passthrough (conditional on opencode selected)
+
+When opencode is selected, mount its three XDG-standard directories. Since `HOME=/tmp/home` in the container, paths resolve naturally — **no dual mount workaround needed** (opencode uses relative XDG paths, not absolute host paths in manifests).
+
+Add to the generated `devcontainer.json` mounts:
+
+```json
+"source=${localEnv:HOME}/.config/opencode,target=/tmp/home/.config/opencode,type=bind",
+"source=${localEnv:HOME}/.local/share/opencode,target=/tmp/home/.local/share/opencode,type=bind",
+"source=${localEnv:HOME}/.cache/opencode,target=/tmp/home/.cache/opencode,type=bind"
+```
+
+Key points:
+- **All three mounts are writable**: auth storage (`~/.local/share/opencode/auth.json`) needs token refresh, plugin cache (`~/.cache/opencode/`) needs bun install, config is writable for consistency.
+- **No dual mount needed**: Unlike Claude Code's `~/.claude` (which needs a mount at both `$HOME/.claude` and the host-native path due to absolute paths in plugin manifests), opencode uses XDG paths that resolve relative to `$HOME`. A single mount at the container `$HOME` path is sufficient.
+- **No separate preferences file**: opencode stores everything in its config directory — no equivalent of Claude Code's `~/.claude.json`.
+- **Claude Code mounts are conditional**: When only opencode is selected, omit the `~/.claude`, dual `~/.claude` mount, and `~/.claude.json` mounts entirely.
 
 ### Kubernetes config passthrough (optional, both paths)
 
@@ -95,7 +113,7 @@ Key points:
 
 ### Voice mode audio passthrough (optional, Path A only)
 
-When voice mode is enabled in Phase 1, mount the host's PulseAudio socket and cookie into the container so Claude Code's `/voice` command can capture audio.
+When voice mode is enabled in Phase 1, mount the host's PulseAudio socket and cookie into the container so voice commands (Claude Code's `/voice`) can capture audio.
 
 Add to the generated `devcontainer.json` mounts:
 
@@ -123,7 +141,7 @@ Key points:
 
 ## Path B: Without host settings (isolated)
 
-Fresh Claude Code with no host config sharing. Plugins must be installed inside the container. Uses named Docker volumes so config persists across container rebuilds but is independent of the host. Best for CI, shared team containers, or sandboxed environments. This is the approach used by the [official Claude Code devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer).
+Fresh environment with no host config sharing for the selected AI tool(s). Plugins must be installed inside the container. Uses named Docker volumes so config persists across container rebuilds but is independent of the host. Best for CI, shared team containers, or sandboxed environments.
 
 ```json
 {
@@ -155,9 +173,24 @@ Fresh Claude Code with no host config sharing. Plugins must be installed inside 
 
 No dual mount needed — there are no host paths to resolve. The named volume (`claude-config-${devcontainerId}`) persists across container rebuilds. No `~/.claude.json` mount needed — Claude Code creates it fresh on first run.
 
+### opencode isolated volumes (conditional on opencode selected)
+
+When opencode is selected in isolated mode, use named volumes:
+
+```json
+"source=opencode-config-${devcontainerId},target=/tmp/home/.config/opencode,type=volume",
+"source=opencode-data-${devcontainerId},target=/tmp/home/.local/share/opencode,type=volume",
+"source=opencode-cache-${devcontainerId},target=/tmp/home/.cache/opencode,type=volume"
+```
+
+Key points:
+- Three separate named volumes (config, data, cache) rather than one — follows XDG separation of concerns.
+- Volumes persist across container rebuilds but are independent of the host.
+- When only opencode is selected, omit the Claude Code named volume (`claude-config-${devcontainerId}`).
+
 ## Key decisions (both paths)
 
-- **`"init": true`**: Runs [tini](https://github.com/krallin/tini) as PID 1. Without it, the shell or Claude Code becomes PID 1, which doesn't handle signals properly (SIGTERM ignored) and doesn't reap zombie child processes. One line, zero cost.
+- **`"init": true`**: Runs [tini](https://github.com/krallin/tini) as PID 1. Without it, the shell or the AI coding tool becomes PID 1, which doesn't handle signals properly (SIGTERM ignored) and doesn't reap zombie child processes. One line, zero cost.
 - **`workspaceFolder` and `workspaceMount`** both use `${localWorkspaceFolder}` so the project mounts at the same absolute path as on the host — required for git worktree `.git` file path resolution.
 - **`.gitconfig` read-only mount**: Shares the host's git identity (user.name, user.email, aliases) without allowing the container to modify host config. Both paths need this — even isolated containers need git identity for commits.
 - **SSH agent socket**: bind-mount `SSH_AUTH_SOCK` from the host and set it in `remoteEnv` — the agent handles authentication (holds decrypted keys), so mounting `~/.ssh` is not needed. Note: the VS Code Dev Containers extension auto-forwards the host SSH agent without any configuration, but the devcontainer CLI does not — the explicit socket mount ensures SSH works in both VS Code and headless/CLI environments (Claude Code, DevPod, CI).

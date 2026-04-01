@@ -73,11 +73,16 @@ dev-shell *args:
     [[ -f "$HOME/.gitconfig" ]] && run_args+=(-v "$HOME/.gitconfig:/tmp/home/.gitconfig:ro")
     [[ -d "$HOME/.config/glab-cli" ]] && run_args+=(-v "$HOME/.config/glab-cli:/tmp/glab-config")
     [[ -d "$HOME/.config/gh" ]] && run_args+=(-v "$HOME/.config/gh:/tmp/gh-config")
+    # Claude Code config (conditional — only when Claude Code is selected)
     [[ -d "$HOME/.claude" ]] && run_args+=(
         -v "$HOME/.claude:/tmp/home/.claude"
         -v "$HOME/.claude:$HOME/.claude"
     )
     [[ -f "$HOME/.claude.json" ]] && run_args+=(-v "$HOME/.claude.json:/tmp/home/.claude.json")
+    # opencode config (conditional — only when opencode is selected)
+    [[ -d "$HOME/.config/opencode" ]] && run_args+=(-v "$HOME/.config/opencode:/tmp/home/.config/opencode")
+    [[ -d "$HOME/.local/share/opencode" ]] && run_args+=(-v "$HOME/.local/share/opencode:/tmp/home/.local/share/opencode")
+    [[ -d "$HOME/.cache/opencode" ]] && run_args+=(-v "$HOME/.cache/opencode:/tmp/home/.cache/opencode")
     # Kubernetes config (conditional — forward KUBECONFIG or fall back to ~/.kube)
     if [[ -n "${KUBECONFIG:-}" && -f "${KUBECONFIG}" ]]; then
         run_args+=(-v "${KUBECONFIG}:/tmp/kube-config")
@@ -128,4 +133,5 @@ dev-shell *args:
 - **Docker socket mount** — conditional on socket existence (`-S /var/run/docker.sock`). Uses `--group-add` to add the host Docker GID as a supplementary group. Works with both `--user` (normal mode) and root+gosu (firewall mode). Only added when Docker support is enabled.
 - **Visual companion port** — auto-selects a free port starting from 19452 (walks up with `ss` until one is available). Overridable via `BRAINSTORM_PORT` env var. Also sets `BRAINSTORM_HOST=0.0.0.0` (bind to all interfaces) and `BRAINSTORM_URL_HOST=localhost` (correct hostname in printed URL). Only added when superpowers is detected in Phase 1.
 - **Kubernetes config** — two-path conditional: if `KUBECONFIG` is set and points to a file, mount that file at `/tmp/kube-config` and set `KUBECONFIG` to the container path (also mount `~/.kube` for cache/credential helpers). If `KUBECONFIG` is unset, mount `~/.kube` and default to `/tmp/home/.kube/config`. Mounts are writable because kubectl writes to `~/.kube/cache` and auth plugins may refresh tokens. Only added when Kubernetes tooling is detected in Phase 1.
-- **Voice mode audio** — conditional PulseAudio socket mount for Claude Code's `/voice` command. Checks socket existence at runtime (`-S`), then checks for cookie file at both XDG (`~/.config/pulse/cookie`) and legacy (`~/.pulse-cookie`) locations. All mounts are read-only. Only added when voice mode is enabled in Phase 1.
+- **Voice mode audio** — conditional PulseAudio socket mount for voice commands (Claude Code's `/voice`). Checks socket existence at runtime (`-S`), then checks for cookie file at both XDG (`~/.config/pulse/cookie`) and legacy (`~/.pulse-cookie`) locations. All mounts are read-only. Only added when voice mode is enabled in Phase 1.
+- **opencode config mounts** — conditional on directory existence (`-d`), same pattern as Claude Code. Three XDG directories: config, auth/data, and plugin cache. No dual mount needed (unlike Claude Code). When only one tool is selected, the other tool's mounts are omitted from the generated recipe entirely (not conditional — absent from the template).

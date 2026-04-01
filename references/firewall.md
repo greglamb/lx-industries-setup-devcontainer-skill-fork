@@ -12,12 +12,12 @@ Create `.devcontainer/firewall-allowlist.txt` with domains auto-detected from Ph
 # Allowed outbound domains — one per line, comments start with #.
 # The firewall resolves these to IPs at container start and blocks everything else.
 
-# Claude API
+# Claude API (Claude Code only — omit when only opencode is selected)
 api.anthropic.com
 statsig.anthropic.com
 sentry.io
 
-# Claude Code distribution (always GitHub, regardless of project forge)
+# Claude Code distribution (Claude Code only — omit when only opencode is selected and forge is not GitHub)
 github.com
 api.github.com
 
@@ -41,6 +41,27 @@ Populate package registries from the package managers detected in Phase 1. Commo
 | rubygems | `rubygems.org` |
 | docker (Docker Hub) | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` |
 
+### opencode LLM provider domains (conditional on opencode selected)
+
+When opencode is selected and the firewall is enabled, ask the user which LLM provider(s) they will use, then add the corresponding API domains to the allowlist:
+
+| Provider | Domain(s) |
+|----------|-----------|
+| Anthropic | `api.anthropic.com` |
+| OpenAI | `api.openai.com` |
+| Google Gemini | `generativelanguage.googleapis.com` |
+| Google Vertex AI | `*-aiplatform.googleapis.com` |
+| AWS Bedrock | `bedrock-runtime.*.amazonaws.com` |
+| Azure OpenAI | `*.openai.azure.com` |
+| Groq | `api.groq.com` |
+| OpenRouter | `openrouter.ai` |
+| GitHub Copilot | `api.github.com`, `api.githubcopilot.com` |
+| OpenCode Zen/Go | `opencode.ai` |
+
+If both tools are selected and the user picks Anthropic for opencode, `api.anthropic.com` is already in the allowlist from Claude Code — no duplication needed.
+
+Wildcard domains (e.g., `*-aiplatform.googleapis.com`) must be resolved to the specific subdomain the user's project uses (e.g., `us-central1-aiplatform.googleapis.com`) because the firewall resolves domains to IPs at startup — wildcards are not supported by `dig`.
+
 When Kubernetes tooling is detected, add the Kubernetes API server domain(s) from the kubeconfig. Parse `~/.kube/config` for `server:` entries and extract the hostnames. Common patterns:
 - GKE: `*.gke.goog` or direct IP addresses
 - EKS: `*.eks.amazonaws.com`
@@ -51,9 +72,9 @@ Also add Helm chart repository domains if the project uses custom Helm repos (ch
 
 When Docker support is enabled, also scan `FROM` directives in project Dockerfiles and `image:` fields in compose files to detect additional registries (GHCR, GitLab, GCR, GAR, ECR). See [docker-support.md](docker-support.md) for the full registry detection table.
 
-Always include `registry.npmjs.org` even if the project doesn't use Node.js — Claude Code runs `npm install` for MCP servers at runtime.
+Include `registry.npmjs.org` when Claude Code is selected (it runs `npm install` for MCP servers at runtime) or when the project itself uses npm. When only opencode is selected and the project doesn't use npm, this entry can be omitted — opencode uses bun for plugin management.
 
-Always include `github.com` and `api.github.com` — Claude Code connects to GitHub for distribution and updates, regardless of the project forge.
+Include `github.com` and `api.github.com` when Claude Code is selected (it connects to GitHub for distribution and updates) or when the project forge is GitHub. When only opencode is selected and the forge is not GitHub, these entries can be omitted — opencode installs from `opencode.ai`.
 
 ## 5.2 Firewall script
 
