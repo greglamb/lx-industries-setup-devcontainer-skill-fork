@@ -2,6 +2,14 @@
 
 An [Agent Skill](https://agentskills.io) that generates hardened `.devcontainer/` setups for [Claude Code](https://claude.ai/code) autonomous mode and IDE use (VS Code, JetBrains, DevPod, devcontainer CLI).
 
+## Mirror Fork Note
+
+You can install from this repository via:
+
+```bash
+npx skills add https://github.com/greglamb/lx-industries-setup-devcontainer-skill-fork -a claude-code -s setup-devcontainer -y
+```
+
 ## What it does
 
 When triggered, the skill analyzes your project and generates a complete [Dev Container](https://containers.dev/) configuration tailored to your toolchain. It handles the hard parts that generic devcontainer templates miss:
