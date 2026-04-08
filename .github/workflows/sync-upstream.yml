@@ -1,0 +1,45 @@
+name: Sync Upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: "Git URL of source repo"
+        required: true
+        default: "https://gitlab.com/lx-industries/setup-devcontainer-skill"
+      source_ref:
+        description: "Source branch or ref to mirror"
+        required: true
+        default: "main"
+      target_ref:
+        description: "Target branch (created/overwritten)"
+        required: true
+        default: "upstream-sync"
+      disable_workflows:
+        description: "How to handle upstream workflows: rename, delete, or keep"
+        required: true
+        type: choice
+        options:
+          - rename
+          - delete
+          - keep
+        default: "rename"
+      rename_dir:
+        description: "Destination directory for renamed workflows (rename mode only)"
+        required: false
+        default: ".github/workflows-upstream"
+  
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  call-sync:
+    uses: ./.github/workflows/sync-branch-to-remote.yml
+    with:
+      source_repo: ${{ inputs.source_repo || 'https://gitlab.com/lx-industries/setup-devcontainer-skill' }}
+      source_ref: ${{ inputs.source_ref || 'main' }}
+      target_ref: ${{ inputs.target_ref || 'upstream-sync' }}
+      disable_workflows: ${{ inputs.disable_workflows || 'rename' }}
+      rename_dir: ${{ inputs.rename_dir || '.github/workflows-upstream' }}
+
